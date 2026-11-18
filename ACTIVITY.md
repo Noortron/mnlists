@@ -1,15 +1,15 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 3
-- Last updated: 2026-11-18T20:49:07+06:00
-- Overall: 3/16 steps complete
+- Current step: 4
+- Last updated: 2026-11-18T21:28:21+06:00
+- Overall: 4/16 steps complete
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
 - [x] Step 1: Project skeleton (Kotlin, Compose, Material 3, Hilt, Navigation-Compose, min SDK 26, single activity, 4-tab scaffold + top bar + 3-dot menu)
 - [x] Step 2: Theme system (light/dark palettes, system-follow + manual override)
-- [ ] Step 3: Data layer: entities + DAOs + DB + repositories
+- [x] Step 3: Data layer: entities + DAOs + DB + repositories
 - [ ] Step 4: Habits: list + create/edit + counter
 - [ ] Step 5: Habits: auto-reset + history
 - [ ] Step 6: To-Do's: list + create/edit
@@ -51,8 +51,23 @@
 - Notes / decisions: `assembleDebug` → BUILD SUCCESSFUL with no Kotlin warnings (also fixed the deprecated `hiltViewModel` import → `androidx.hilt.lifecycle.viewmodel.compose` and made the `@ApplicationContext` target explicit as `@param:`). No network/analytics touched. New dependency: `androidx.datastore:datastore-preferences:1.3.0` (local file storage only).
 - **Step 1 runtime status: device-verified by the user** (tabs/nav/menu confirmed working on a device); the earlier "runtime not verified" caveat is resolved.
 
+### Step 3 — Data layer: entities + DAOs + DB + repositories — 2026-11-18T21:28:21+06:00
+- What was done: Full Room data layer per SPEC §7, no UI.
+  - 7 entities in `data/local/entity`: `Habit`, `HabitLog`, `Todo`, `Daily`, `DailyOccurrence`, `Subtask`, `Reminder` (fields per §7; `sortOrder` as `Double` for cheap reordering).
+  - Enums in `data/model/Enums.kt`: `ResetSchedule`, `RepeatType`, `ParentType`, `ReminderParentType`; `Converters` store enums by name, `DayOfWeek` as ISO int, weekday sets as sorted CSV.
+  - 7 DAOs with Flow observation queries + suspend writes; DAO-level helpers for cascade resets, max sort order, unique-occurrence inserts (`OnConflictStrategy.IGNORE`), history range reads, reminder id allocation.
+  - `MnlistsDatabase` (version 1, `exportSchema = true`, no destructive fallback) + `di/DatabaseModule` providing the DB and every DAO via Hilt.
+  - Repositories: `HabitRepository` (CRUD, allow-direction-aware `adjustCount`, log append), `TodoRepository` (delete cascade to subtasks/reminders, §8 two-way parent↔subtask cascade in transactions), `DailyRepository` (series CRUD, delete-series keeps past occurrences but drops future ones + reminders, idempotent `ensureOccurrence`, skip, occurrence↔subtask cascade), `ReminderRepository` (CRUD, due query, unique notification ids).
+  - Dates are stored as epoch **days** (`Long`) and timestamps as epoch **millis**; documented in entity KDoc.
+- **Smoke test result (explicit):** `:app:testDebugUnitTest --tests "com.example.mnlists.data.local.DaoSmokeTest"` → **BUILD SUCCESSFUL**; JUnit report `app/build/test-results/testDebugUnitTest/TEST-…DaoSmokeTest.xml` = **tests=5, failures=0, errors=0, skipped=0** (total 41.5 s; suite timestamp 2026-11-18T15:25:10Z). Passing cases: `habit_createReadUpdateCount_andConvertersRoundTrip`, `habitLog_insertAndReadHistory`, `todo_withSubtasks_andCompletionCascadePrimitives`, `dailyOccurrence_uniquePerDate_andSkipFlag`, `reminder_insertReadAndDeleteForParent`. Runs on the JVM via Robolectric (in-memory Room DB), no device required.
+- Also verified: `:app:assembleDebug` → BUILD SUCCESSFUL; schema exported to `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` containing all 7 tables.
+- Files touched:
+  - New: `data/model/Enums.kt`, `data/local/Converters.kt`, `data/local/MnlistsDatabase.kt`, `data/local/entity/{Habit,HabitLog,Todo,Daily,DailyOccurrence,Subtask,Reminder}.kt`, `data/local/dao/{Habit,HabitLog,Todo,Daily,DailyOccurrence,Subtask,Reminder}Dao.kt`, `data/repository/{Habit,Todo,Daily,Reminder}Repository.kt`, `di/DatabaseModule.kt`, `app/src/test/java/com/example/mnlists/data/local/DaoSmokeTest.kt`
+  - Edited: `gradle/libs.versions.toml` (room 2.8.5, robolectric 4.18.1), `app/build.gradle.kts` (Room + KSP schema args + test deps)
+- Notes / decisions: entities double as domain models (no extra mapping layer) — revisit only if a UI need appears. `HabitLog` has **no FK** and `DailyOccurrence` has **no FK** on purpose, so history survives habit/series deletion (§9). `Todo` keeps both `isCompleted` and `completedAt` (single source of truth = `isCompleted`). Occurrence generation logic itself is Step 8, but `ensureOccurrence`/`latestOccurrenceDate` primitives are in place.
+
 ## Next Up
-- Step 3: Data layer — Room entities (§7), DAOs, database, repositories; no UI. Done when the project compiles and a basic DAO create/read smoke test passes.
+- Step 4: Habits UI — list rows (title, note preview, count, −/+ per enabled), FAB → create, tap title → edit page with note emphasized, delete with confirm; persistence across restart.
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -60,6 +75,8 @@
 - **Material icons are not transitive from Material 3** in this Compose BOM; added explicit `androidx.compose.material:material-icons-core`.
 - **Step 1 runtime — resolved**: the AVD could not boot here ("Not enough space to create userdata partition", needs 12 GB), but the user device-verified Step 1 (tabs navigate, menu opens placeholders). Steps 2+ still need on-device verification by the user.
 - Compiler warning fixed: `@StringRes` on a constructor `val` → changed to `@param:StringRes`.
+- **Robolectric added (test-only)** so the Room smoke test can run on the JVM — the AVD still cannot boot here (disk space), and an emulator run would not be repeatable. Robolectric downloads `android-all` jars on first run; test JVM warnings about native access are benign.
+- **Room schema location** is `app/schemas` (KSP arg `room.schemaLocation`); schema v1 is committed. Future entity changes need real migrations (no destructive fallback by design).
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
 
 ## Recovery Notes
@@ -69,4 +86,6 @@
 - Stack: Gradle 9.6.0, AGP 9.5.1, built-in Kotlin (KGP 2.2.10), KSP 2.3.14, Compose BOM 2026.09.00, Navigation-Compose 2.10.2, Hilt 2.60.1, Lifecycle 2.11.0, Activity-Compose 1.13.0, DataStore Preferences 1.3.0, SDK 37, minSdk 26, namespace `com.example.mnlists`.
 - Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt`.
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
+- Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` (version 1).
+- Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes).
 - Debug build manifest includes `androidx.compose.ui.tooling.PreviewActivity` (debug-only, expected).
