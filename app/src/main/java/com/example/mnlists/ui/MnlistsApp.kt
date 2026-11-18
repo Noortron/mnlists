@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -33,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mnlists.R
+import com.example.mnlists.data.settings.ThemeMode
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import com.example.mnlists.ui.navigation.TopLevelDestination
 import com.example.mnlists.ui.screens.AboutScreen
@@ -47,7 +49,10 @@ import com.example.mnlists.ui.screens.TodosScreen
  * context-aware FAB, and a single NavHost that also hosts Settings and About.
  */
 @Composable
-fun MnlistsApp() {
+fun MnlistsApp(
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -95,7 +100,12 @@ fun MnlistsApp() {
             composable(MnlistsRoutes.DAILIES) { DailiesScreen() }
             composable(MnlistsRoutes.TODOS) { TodosScreen() }
             composable(MnlistsRoutes.CALENDAR) { CalendarScreen() }
-            composable(MnlistsRoutes.SETTINGS) { SettingsScreen() }
+            composable(MnlistsRoutes.SETTINGS) {
+                SettingsScreen(
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
+                )
+            }
             composable(MnlistsRoutes.ABOUT) { AboutScreen() }
         }
     }
@@ -169,7 +179,10 @@ private fun MnlistsBottomBar(
     selected: TopLevelDestination,
     onSelect: (TopLevelDestination) -> Unit,
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
+    ) {
         TopLevelDestination.entries.forEach { destination ->
             NavigationBarItem(
                 selected = destination == selected,
