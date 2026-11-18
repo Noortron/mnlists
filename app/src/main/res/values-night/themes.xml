@@ -1,0 +1,6 @@
+<resources>
+    <!-- Compose owns all UI; the XML theme only provides the window shell. -->
+    <style name="Theme.Mnlists" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#101322</item>
+    </style>
+</resources>

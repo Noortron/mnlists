@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">MNlists</string>
+
+    <!-- Bottom tabs -->
+    <string name="tab_habits">Habits</string>
+    <string name="tab_dailies">Dailies</string>
+    <string name="tab_todos">To-Do\'s</string>
+    <string name="tab_calendar">Calendar</string>
+
+    <!-- Top bar -->
+    <string name="action_more_options">More options</string>
+    <string name="action_back">Back</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_about">About</string>
+
+    <!-- FAB -->
+    <string name="fab_add_habit">Add habit</string>
+    <string name="fab_add_daily">Add daily</string>
+    <string name="fab_add_todo">Add to-do</string>
+
+    <!-- Empty states -->
+    <string name="empty_habits">Your habits will appear here.</string>
+    <string name="empty_dailies">Your recurring dailies will appear here.</string>
+    <string name="empty_todos">Your to-do\'s will appear here.</string>
+    <string name="empty_calendar">Your month and day plan will appear here.</string>
+
+    <!-- Settings / About placeholders -->
+    <string name="settings_placeholder_title">Settings are on the way</string>
+    <string name="settings_placeholder_body">Theme, notification permissions and habit defaults will be configurable here.</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_description">A calm, local-only planner for habits, dailies and to-do\'s. Everything stays on your device.</string>
+</resources>
