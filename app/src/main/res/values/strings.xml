@@ -19,14 +19,46 @@
     <string name="fab_add_todo">Add to-do</string>
 
     <!-- Empty states -->
-    <string name="empty_habits">Your habits will appear here.</string>
+    <string name="empty_habits">No habits yet. Tap + to add one.</string>
     <string name="empty_dailies">Your recurring dailies will appear here.</string>
     <string name="empty_todos">Your to-do\'s will appear here.</string>
     <string name="empty_calendar">Your month and day plan will appear here.</string>
 
+    <!-- Habits (SPEC §4.1) -->
+    <string name="habit_new_title">New habit</string>
+    <string name="habit_edit_title">Edit habit</string>
+    <string name="habit_title_label">Title</string>
+    <string name="habit_title_error">Give this habit a title.</string>
+    <string name="habit_note_label">Note</string>
+    <string name="habit_note_hint">Anything you want to remember about this habit</string>
+    <string name="habit_schedule_section">Reset schedule</string>
+    <string name="habit_schedule_label">Resets</string>
+    <string name="habit_schedule_daily">Daily</string>
+    <string name="habit_schedule_weekly">Weekly</string>
+    <string name="habit_schedule_monthly">Monthly</string>
+    <string name="habit_schedule_every_n">Every N days</string>
+    <string name="habit_every_n_label">N (days)</string>
+    <string name="habit_every_n_error">Enter a whole number of days (1 or more).</string>
+    <string name="habit_every_n_support">The counter resets every N days.</string>
+    <string name="habit_weekday_label">Reset day (optional)</string>
+    <string name="habit_weekday_none">Calendar week</string>
+    <string name="habit_counter_section">Counter</string>
+    <string name="habit_allow_up">Allow + (increase)</string>
+    <string name="habit_allow_up_support">Show the + button on this habit.</string>
+    <string name="habit_allow_down">Allow − (decrease)</string>
+    <string name="habit_allow_down_support">Show the − button on this habit.</string>
+    <string name="habit_directions_error">Enable at least one direction.</string>
+    <string name="habit_save">Save</string>
+    <string name="habit_delete">Delete habit</string>
+    <string name="habit_delete_confirm_title">Delete habit?</string>
+    <string name="habit_delete_confirm_body">This habit will be deleted. Its history is kept.</string>
+    <string name="habit_increase">Increase %1$s</string>
+    <string name="habit_decrease">Decrease %1$s</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+
     <!-- Settings / About placeholders -->
-    <string name="settings_appearance">Appearance</string>
-    <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>
+    <string name="settings_appearance">Appearance</string>    <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>
     <string name="theme_mode_system">System default</string>
     <string name="theme_mode_system_description">Follow the device’s light or dark setting</string>
     <string name="theme_mode_light">Light</string>

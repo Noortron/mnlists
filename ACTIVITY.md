@@ -1,16 +1,16 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 4
-- Last updated: 2026-11-18T21:28:21+06:00
-- Overall: 4/16 steps complete
+- Current step: 5
+- Last updated: 2026-11-18T22:17:45+06:00
+- Overall: 5/16 steps complete
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
 - [x] Step 1: Project skeleton (Kotlin, Compose, Material 3, Hilt, Navigation-Compose, min SDK 26, single activity, 4-tab scaffold + top bar + 3-dot menu)
 - [x] Step 2: Theme system (light/dark palettes, system-follow + manual override)
 - [x] Step 3: Data layer: entities + DAOs + DB + repositories
-- [ ] Step 4: Habits: list + create/edit + counter
+- [x] Step 4: Habits: list + create/edit + counter
 - [ ] Step 5: Habits: auto-reset + history
 - [ ] Step 6: To-Do's: list + create/edit
 - [ ] Step 7: Subtasks (To-Do's)
@@ -66,8 +66,25 @@
   - Edited: `gradle/libs.versions.toml` (room 2.8.5, robolectric 4.18.1), `app/build.gradle.kts` (Room + KSP schema args + test deps)
 - Notes / decisions: entities double as domain models (no extra mapping layer) — revisit only if a UI need appears. `HabitLog` has **no FK** and `DailyOccurrence` has **no FK** on purpose, so history survives habit/series deletion (§9). `Todo` keeps both `isCompleted` and `completedAt` (single source of truth = `isCompleted`). Occurrence generation logic itself is Step 8, but `ensureOccurrence`/`latestOccurrenceDate` primitives are in place.
 
+### Step 4 — Habits: list + create/edit + counter — 2026-11-18T22:17:45+06:00
+- What was done:
+  - `HabitsViewModel`: live rows from `HabitRepository.observeHabits()` as a `StateFlow` (`WhileSubscribed(5s)`); `increment`/`decrement` delegate to `adjustCount`, which already ignores disabled directions and floors at 0.
+  - `HabitsScreen`: `LazyColumn` of rounded rows — title (1 line, ellipsis), one-line truncated note preview (shown only when non-blank; rows never collapse to hide it), current count, and −/+ `IconButton`s rendered **only** for enabled directions; tapping the title area opens the editor. Empty state reads "No habits yet. Tap + to add one."
+  - `HabitEditorViewModel` + `HabitEditorScreen`: one form for create (no/0 id) and edit (Long nav arg). Fields: title, note in an emphasized surface card (4–8 lines), reset-schedule dropdown (Daily / Weekly / Monthly / Every N days) with N validation, optional weekly reset-day dropdown, and allow −/+ checkboxes with "at least one direction" validation. Save validates, then inserts or updates Room; delete (edit mode only) opens a confirmation `AlertDialog` and, on confirm, deletes the habit (history preserved) and pops back.
+  - Navigation: `habits/new` + `habits/edit/{habitId}` (`NavType.LongType`); Habits FAB → create; top bar shows "New habit"/"Edit habit" with back arrow; overflow menu hidden on editor routes. Full habit string set added; `material-icons-extended` added for `Icons.Filled.Remove`; placeholder `ui/screens/HabitsScreen.kt` removed.
+- **Runtime verification (explicit):** no device/emulator is available here (the AVD still cannot boot: it needs 12 GB userdata, 8.5 GB free), so verification is on the JVM via Robolectric with real Room, real repositories, real ViewModels and real composables.
+  - `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**; JUnit XML totals: `DaoSmokeTest` tests=5/failures=0, `HabitsFeatureTest` tests=5/failures=0, `HabitsUiTest` tests=2/failures=0, `ExampleUnitTest` tests=1/failures=0 → **13 tests, 0 failures, 0 errors, 0 skipped**.
+  - `HabitsFeatureTest` proves: +/− respects enabled directions and never goes below 0; disabled direction ignores taps; list state reflects stored rows; create rejects a blank title and a no-direction counter, then persists title/note/schedule; edit loads existing values, saves note+schedule and preserves the count; delete removes the row, fires its callback, and keeps the habit's log; a habit in an on-disk DB survives closing and reopening the database file.
+  - `HabitsUiTest` proves: a row renders title, truncated note and count; +/− clicks reach the callbacks; the − button does not exist when `allowDown=false`; tapping the title opens the editor; the editor loads an existing title/note; "Delete habit" opens the confirmation, Cancel keeps the habit, confirming deletes it and calls `onDone`.
+  - **Not runtime-verified:** real-device touch/IME/dropdown/scroll behavior and dark-palette appearance; the FAB → `habits/new` click and top-bar back arrow inside the full `NavHost` (wiring compiles and is reviewed, but no navigation-level UI test); the Hilt graph on a real device; process-restart persistence in the app itself (only the DB-file reopen is tested). These need a user device smoke test.
+  - Also verified: `:app:assembleDebug` → BUILD SUCCESSFUL (debug APK built).
+- Files touched:
+  - New: `ui/habits/HabitsViewModel.kt`, `ui/habits/HabitEditorViewModel.kt`, `ui/habits/HabitsScreen.kt`, `ui/habits/HabitEditorScreen.kt`, `app/src/test/java/com/example/mnlists/ui/habits/HabitsFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/habits/HabitsUiTest.kt`
+  - Edited: `ui/MnlistsApp.kt`, `ui/navigation/Destinations.kt`, `res/values/strings.xml`, `app/build.gradle.kts`, `gradle/libs.versions.toml`; deleted `ui/screens/HabitsScreen.kt`
+- Notes / decisions: Step 4 stores the reset schedule but does not act on it (auto-reset + history are Step 5). Saving with no enabled direction is blocked, since a habit without a counter direction makes no sense in this UI. Weekly reset-day is optional (`null` = calendar week). Test-only setup: `testOptions.unitTests.isIncludeAndroidResources = true` (Robolectric loads the merged manifest/resources so Compose tests can launch `ComponentActivity`), Compose `ui-test-junit4` + debug `ui-test-manifest`, `kotlinx-coroutines-test` (Unconfined main), and Room query/transaction executors set to a direct executor so suspend DAO calls run inline and assertions are deterministic.
+
 ## Next Up
-- Step 4: Habits UI — list rows (title, note preview, count, −/+ per enabled), FAB → create, tap title → edit page with note emphasized, delete with confirm; persistence across restart.
+- Step 5: Habits — auto-reset (daily / every N days / weekly / monthly per `ResetSchedule`, optional weekday) + history writing (`HabitLog`, cycle start/end, count at end of cycle).
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -77,6 +94,7 @@
 - Compiler warning fixed: `@StringRes` on a constructor `val` → changed to `@param:StringRes`.
 - **Robolectric added (test-only)** so the Room smoke test can run on the JVM — the AVD still cannot boot here (disk space), and an emulator run would not be repeatable. Robolectric downloads `android-all` jars on first run; test JVM warnings about native access are benign.
 - **Room schema location** is `app/schemas` (KSP arg `room.schemaLocation`); schema v1 is committed. Future entity changes need real migrations (no destructive fallback by design).
+- **Step 4 runtime verification is JVM-only** (Robolectric + Compose UI test). The AVD still cannot boot (disk space), so the FAB navigation click, top-bar back arrow, Hilt graph, and real-device input/theme behavior are code-reviewed + compile-verified but not exercised end-to-end. Needs a user device smoke test. Compose UI tests required `unitTests.isIncludeAndroidResources = true` and `ui-test-manifest`; Room executors are direct executors in tests only.
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
 
 ## Recovery Notes
@@ -87,5 +105,5 @@
 - Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt`.
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` (version 1).
-- Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes).
+- Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources).
 - Debug build manifest includes `androidx.compose.ui.tooling.PreviewActivity` (debug-only, expected).

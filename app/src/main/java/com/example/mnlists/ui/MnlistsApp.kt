@@ -29,18 +29,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.mnlists.R
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.ui.habits.HabitEditorScreen
+import com.example.mnlists.ui.habits.HabitsRoute
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import com.example.mnlists.ui.navigation.TopLevelDestination
 import com.example.mnlists.ui.screens.AboutScreen
 import com.example.mnlists.ui.screens.CalendarScreen
 import com.example.mnlists.ui.screens.DailiesScreen
-import com.example.mnlists.ui.screens.HabitsScreen
 import com.example.mnlists.ui.screens.SettingsScreen
 import com.example.mnlists.ui.screens.TodosScreen
 
@@ -58,9 +61,13 @@ fun MnlistsApp(
     val currentRoute = backStackEntry?.destination?.route
     val topLevel = TopLevelDestination.entries.firstOrNull { it.route == currentRoute }
     val isSubScreen = currentRoute == MnlistsRoutes.SETTINGS || currentRoute == MnlistsRoutes.ABOUT
+    val isHabitEditor = currentRoute == MnlistsRoutes.HABIT_NEW ||
+        currentRoute == MnlistsRoutes.HABIT_EDITOR
 
     val title = when {
         topLevel != null -> stringResource(topLevel.titleRes)
+        currentRoute == MnlistsRoutes.HABIT_NEW -> stringResource(R.string.habit_new_title)
+        currentRoute == MnlistsRoutes.HABIT_EDITOR -> stringResource(R.string.habit_edit_title)
         currentRoute == MnlistsRoutes.SETTINGS -> stringResource(R.string.menu_settings)
         currentRoute == MnlistsRoutes.ABOUT -> stringResource(R.string.menu_about)
         else -> stringResource(R.string.app_name)
@@ -71,7 +78,7 @@ fun MnlistsApp(
         topBar = {
             MnlistsTopBar(
                 title = title,
-                showOverflowMenu = !isSubScreen,
+                showOverflowMenu = !isSubScreen && !isHabitEditor,
                 onNavigateBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigateSingleTop(MnlistsRoutes.SETTINGS) },
                 onOpenAbout = { navController.navigateSingleTop(MnlistsRoutes.ABOUT) },
@@ -87,7 +94,17 @@ fun MnlistsApp(
         },
         floatingActionButton = {
             if (topLevel != null && topLevel != TopLevelDestination.CALENDAR) {
-                AddFab(destination = topLevel)
+                AddFab(
+                    destination = topLevel,
+                    onClick = {
+                        when (topLevel) {
+                            TopLevelDestination.HABITS ->
+                                navController.navigate(MnlistsRoutes.HABIT_NEW)
+                            // Dailies/To-Do's create flows arrive in Steps 6 and 9.
+                            else -> Unit
+                        }
+                    },
+                )
             }
         },
     ) { innerPadding ->
@@ -96,7 +113,24 @@ fun MnlistsApp(
             startDestination = MnlistsRoutes.HABITS,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(MnlistsRoutes.HABITS) { HabitsScreen() }
+            composable(MnlistsRoutes.HABITS) {
+                HabitsRoute(
+                    onOpenHabit = { habitId ->
+                        navController.navigate(MnlistsRoutes.habitEditorRoute(habitId))
+                    },
+                )
+            }
+            composable(MnlistsRoutes.HABIT_NEW) {
+                HabitEditorScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                route = MnlistsRoutes.HABIT_EDITOR,
+                arguments = listOf(
+                    navArgument(MnlistsRoutes.HABIT_ID_ARG) { type = NavType.LongType },
+                ),
+            ) {
+                HabitEditorScreen(onDone = { navController.popBackStack() })
+            }
             composable(MnlistsRoutes.DAILIES) { DailiesScreen() }
             composable(MnlistsRoutes.TODOS) { TodosScreen() }
             composable(MnlistsRoutes.CALENDAR) { CalendarScreen() }
@@ -200,7 +234,7 @@ private fun MnlistsBottomBar(
 }
 
 @Composable
-private fun AddFab(destination: TopLevelDestination) {
+private fun AddFab(destination: TopLevelDestination, onClick: () -> Unit) {
     val contentDescription = when (destination) {
         TopLevelDestination.HABITS -> stringResource(R.string.fab_add_habit)
         TopLevelDestination.DAILIES -> stringResource(R.string.fab_add_daily)
@@ -208,8 +242,7 @@ private fun AddFab(destination: TopLevelDestination) {
         TopLevelDestination.CALENDAR -> stringResource(R.string.app_name)
     }
     FloatingActionButton(
-        // Wired to the real create flows in Steps 4, 6 and 9.
-        onClick = {},
+        onClick = onClick,
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
     ) {

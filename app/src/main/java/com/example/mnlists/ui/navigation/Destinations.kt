@@ -17,6 +17,15 @@ object MnlistsRoutes {
     const val CALENDAR = "calendar"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
+
+    /** Habit create page (FAB). */
+    const val HABIT_NEW = "habits/new"
+
+    /** Habit edit page; `{habitId}` is a Long nav argument. */
+    const val HABIT_EDITOR = "habits/edit/{habitId}"
+    const val HABIT_ID_ARG = "habitId"
+
+    fun habitEditorRoute(habitId: Long): String = "habits/edit/$habitId"
 }
 
 /** The four bottom-bar destinations, in display order. */
