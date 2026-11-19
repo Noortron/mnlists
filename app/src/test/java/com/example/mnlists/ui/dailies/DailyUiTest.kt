@@ -8,7 +8,9 @@ import androidx.compose.ui.platform.LocalCursorBlinkEnabled
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -98,13 +100,11 @@ class DailyUiTest {
         val viewModel = DailiesViewModel(repository, manager)
         viewModel.setToday(day)
         var openedSeries: Long? = null
-        var openedOccurrence: Long? = null
 
         compose.setContent {
             MaterialTheme {
                 DailiesRoute(
                     onOpenSeries = { openedSeries = it },
-                    onOpenOccurrence = { openedOccurrence = it },
                     viewModel = viewModel,
                 )
             }
@@ -126,6 +126,8 @@ class DailyUiTest {
         assertTrue("completed row must sit below its header", completedHeaderTop < doneTop)
         assertStruckThrough("Finished reading")
         assertNotStruckThrough("Morning pages")
+        // Skipped rows only move sections; they keep the normal text styling.
+        assertNotStruckThrough("Skipped workout")
 
         // Skip is a live UI action on today's occurrence only.
         compose.onNodeWithContentDescription("Skip Morning pages").performScrollTo().performClick()
@@ -135,12 +137,11 @@ class DailyUiTest {
         assertTrue(repository.getOccurrence(skippedOccurrence)!!.isSkipped)
         compose.onNodeWithContentDescription("Unskip Morning pages").assertExists()
 
-        // Title and "Edit this day" lead to the two locked editors.
+        // Tapping the title is now the only editor entry point from a row.
+        compose.onAllNodesWithContentDescription("Edit this day for Morning pages")
+            .assertCountEquals(0)
         compose.onNodeWithText("Morning pages").performScrollTo().performClick()
         assertEquals(repository.getOccurrence(openOccurrence)!!.dailyId, openedSeries)
-        compose.onNodeWithContentDescription("Edit this day for Morning pages")
-            .performScrollTo().performClick()
-        assertEquals(openOccurrence, openedOccurrence)
         Unit
     }
 
@@ -153,7 +154,7 @@ class DailyUiTest {
         compose.setContent {
             MaterialTheme {
                 CompositionLocalProvider(LocalCursorBlinkEnabled provides false) {
-                    DailiesRoute(onOpenSeries = {}, onOpenOccurrence = {}, viewModel = viewModel)
+                    DailiesRoute(onOpenSeries = {}, viewModel = viewModel)
                 }
             }
         }
@@ -203,7 +204,7 @@ class DailyUiTest {
         viewModel.setToday(day)
         compose.setContent {
             MaterialTheme {
-                DailiesRoute(onOpenSeries = {}, onOpenOccurrence = {}, viewModel = viewModel)
+                DailiesRoute(onOpenSeries = {}, viewModel = viewModel)
             }
         }
         compose.waitForIdle()
@@ -233,12 +234,20 @@ class DailyUiTest {
         editor.setTitle("Morning pages")
         editor.setStartDate(day)
 
+        // "Every N" is visibly prefilled with 1.
+        compose.onNodeWithTag(DAILY_EVERY_N_TAG).performScrollTo().assertTextEquals("1")
+
         // Scheduling controls are reachable from the real composable.
         compose.onNodeWithText("Daily").performScrollTo().performClick()
         compose.onNodeWithText("Weekly").assertIsDisplayed()
         compose.onNodeWithText("Monthly").assertIsDisplayed()
         compose.onNodeWithText("Weekly").performClick()
-        compose.onNodeWithText("Monday").performScrollTo().performClick()
+
+        // All seven weekdays fit as round buttons with short labels.
+        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach {
+            compose.onNodeWithText(it).performScrollTo().assertIsDisplayed()
+        }
+        compose.onNodeWithContentDescription("Monday").performScrollTo().performClick()
 
         compose.onNodeWithText("Save").performScrollTo().performClick()
         compose.waitForIdle()
@@ -287,6 +296,57 @@ class DailyUiTest {
         assertTrue(done)
         assertEquals("Evening pages", repository.getDaily(dailyId)!!.title)
         assertTrue("series edits never rewrite an occurrence", repository.getOccurrence(occurrenceId)!!.isCompleted)
+    }
+
+    @Test
+    fun seriesEditor_viewCreateEditAndDeleteSubtasks_inline() = runBlocking {
+        val dailyId = repository.createDaily(Daily(title = "Morning pages", startDate = day))
+        val occurrenceId = repository.ensureOccurrence(dailyId, day)!!.id
+        val editor = DailyEditorViewModel(
+            repository,
+            manager,
+            SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
+        )
+        compose.setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalCursorBlinkEnabled provides false) {
+                    DailyEditorScreen(onDone = {}, viewModel = editor)
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        // Create from the parent editor.
+        compose.onNodeWithText("Subtasks").assertIsDisplayed()
+        compose.onNodeWithText("Add subtask").performScrollTo().performClick()
+        compose.onNodeWithText("New subtask").assertIsDisplayed()
+        compose.onNodeWithTag(DAILY_SUBTASK_TITLE_TAG).performTextReplacement("Book flights")
+        compose.onNodeWithText("Add").performScrollTo().performClick()
+        compose.waitForIdle()
+        val created = repository.getSubtasks(occurrenceId).single()
+        assertEquals("Book flights", created.title)
+
+        // Tapping the title opens the inline editor, which saves in place.
+        compose.onNodeWithText("Book flights").performScrollTo().performClick()
+        compose.onNodeWithText("Edit subtask").assertIsDisplayed()
+        compose.onNodeWithTag(DAILY_SUBTASK_TITLE_TAG).performTextReplacement("Book train")
+        compose.onNodeWithText("Save subtask").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals("Book train", repository.getSubtasks(occurrenceId).single().title)
+
+        // Checkbox and delete work from the same editor.
+        compose.onNodeWithContentDescription("Mark Book train as done")
+            .performScrollTo().performClick()
+        compose.waitForIdle()
+        assertTrue(repository.getSubtasks(occurrenceId).single().isCompleted)
+
+        compose.onNodeWithContentDescription("Delete Book train")
+            .performScrollTo().performClick()
+        compose.onNodeWithText("Delete subtask?").assertIsDisplayed()
+        compose.onNodeWithText("Delete").performClick()
+        compose.waitForIdle()
+        assertTrue(repository.getSubtasks(occurrenceId).isEmpty())
+        Unit
     }
 
     @Test

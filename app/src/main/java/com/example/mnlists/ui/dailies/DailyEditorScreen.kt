@@ -2,6 +2,7 @@ package com.example.mnlists.ui.dailies
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -319,19 +320,57 @@ private fun SeriesFields(
             modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
         )
         Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp),
         ) {
             DayOfWeek.entries.forEach { day ->
-                FilterChip(
-                    selected = day in state.weekdays,
+                val selected = day in state.weekdays
+                val fullName = day.getDisplayName(DayTextStyle.FULL, Locale.getDefault())
+                Surface(
                     onClick = { viewModel.toggleWeekday(day) },
-                    label = { Text(day.displayName()) },
-                    shape = MaterialTheme.shapes.large,
-                )
+                    shape = CircleShape,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    modifier = Modifier
+                        .size(46.dp)
+                        .semantics { contentDescription = fullName },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = day.getDisplayName(DayTextStyle.SHORT, Locale.getDefault()),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    }
+                }
             }
         }
     }
+
+    Spacer(Modifier.height(24.dp))
+
+    SectionHeader(stringResource(R.string.todo_subtask_section))
+
+    // Subtasks live on the occurrence, but are edited from this parent editor
+    // (create/edit mode). In a brand-new series they are staged until Save.
+    DailySubtaskSection(
+        subtasks = viewModel.subtasks,
+        onToggleCompleted = viewModel::setSubtaskCompleted,
+        onAdd = { title, note, deadline -> viewModel.addSubtask(title, note, deadline) {} },
+        onUpdate = { id, title, note, deadline ->
+            viewModel.updateSubtask(id, title, note, deadline) {}
+        },
+        onDelete = viewModel::deleteSubtask,
+    )
 
     if (showStartPicker) {
         val pickerState = rememberDatePickerState(
@@ -647,10 +686,6 @@ private fun RepeatDropdown(value: RepeatType, onSelected: (RepeatType) -> Unit) 
         }
     }
 }
-
-@Composable
-private fun DayOfWeek.displayName(): String =
-    getDisplayName(DayTextStyle.FULL, Locale.getDefault())
 
 /** Test tags for the series editor fields. */
 internal const val DAILY_TITLE_TAG = "dailyTitle"

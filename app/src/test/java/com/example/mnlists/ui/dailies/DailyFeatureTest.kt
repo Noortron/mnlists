@@ -94,6 +94,7 @@ class DailyFeatureTest {
     fun seriesEditor_createsAndEditsWholeSeries_withoutTouchingGeneratedOccurrences() = runBlocking {
         val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
         assertEquals(DailyEditorMode.SERIES, editor.mode)
+        assertEquals("1", editor.uiState.everyN)
 
         editor.setTitle("  Morning pages  ")
         editor.setNote("  three pages  ")
@@ -132,6 +133,38 @@ class DailyFeatureTest {
         assertEquals(RepeatType.DAILY, updated.repeatType)
         assertTrue("weekday picks are cleared for a non-weekly series", updated.weekdays.isEmpty())
         assertTrue("series edits never rewrite an occurrence", repository.getOccurrence(occurrenceId)!!.isCompleted)
+    }
+
+    @Test
+    fun seriesEditor_newSeriesStagesSubtasksUntilSave() = runBlocking {
+        val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
+        editor.setTitle("Morning pages")
+        editor.setStartDate(day)
+
+        var added = false
+        editor.addSubtask("Book flights", "window seat", day + 1) { added = true }
+        assertTrue(added)
+        assertEquals("Book flights", editor.subtasks.single().title)
+        assertTrue("nothing is persisted before Save", repository.observeDailies().first().isEmpty())
+
+        // Draft children can be edited and checked before the series exists.
+        val draftId = editor.subtasks.single().id
+        assertTrue("draft ids are negative", draftId < 0)
+        editor.updateSubtask(draftId, "Book train", "aisle", null) {}
+        editor.setSubtaskCompleted(draftId, true)
+        assertEquals("Book train", editor.subtasks.single().title)
+        assertTrue(editor.subtasks.single().isCompleted)
+
+        var saved = false
+        editor.save { saved = true }
+        assertTrue(saved)
+
+        val created = repository.observeDailies().first().single()
+        val occurrence = repository.getOccurrenceForDate(created.id, day)!!
+        val stored = repository.getSubtasks(occurrence.id).single()
+        assertEquals("Book train", stored.title)
+        assertEquals("aisle", stored.note)
+        assertTrue(stored.isCompleted)
     }
 
     @Test

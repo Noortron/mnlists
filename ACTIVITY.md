@@ -2,8 +2,8 @@
 
 ## Project Status
 - Current step: 10
-- Last updated: 2026-11-19T20:30:02+06:00
-- Overall: 10/16 steps complete (plus a completed Habits UI improvement pass)
+- Last updated: 2026-11-19T21:28:57+06:00
+- Overall: 10/16 steps complete (plus completed Habits UI improvement and Dailies UI refinement passes)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -16,6 +16,7 @@
 - [x] Step 7: Subtasks (To-Do's)
 - [x] Step 8: Dailies: model + occurrence generation
 - [x] Step 9: Dailies UI + subtasks + skip
+- [x] Step 9.5: Dailies UI refinements (user feedback)
 - [ ] Step 10: Reordering & drag handle everywhere
 - [ ] Step 11: Reminders & notifications
 - [ ] Step 12: Calendar UI + day list
@@ -119,6 +120,18 @@
 - Files touched: new `ui/dailies/{DailyDates,DailyPresentation,DailiesViewModel,DailiesScreen,DailySubtaskSection,DailyEditorViewModel,DailyEditorScreen}.kt`, `app/src/test/.../ui/dailies/{DailyFeatureTest,DailyUiTest}.kt`; edited `data/repository/DailyRepository.kt`, `data/local/dao/DailyOccurrenceDao.kt`, `ui/MnlistsApp.kt`, `ui/navigation/Destinations.kt`, `res/values/strings.xml`; deleted `ui/screens/DailiesScreen.kt`.
 - Notes / decisions: subtasks are parented to `DailyOccurrence` (`ParentType.DAILY_OCCURRENCE`) so every generated day gets a fresh child list without a schema change. The inline subtask card (not a dialog) keeps Robolectric Compose tests idle. A title-specific content description ("Edit this day for &lt;title&gt;") disambiguates the repeated row action in tests. Step 12 Calendar can open `dailies/occurrence/{occurrenceId}` directly. Manual drag reorder and reminder UI stay with Steps 10/11; only collapse/expand is wired now.
 
+### Step 9.5 — Dailies UI refinements — 2026-11-19T21:28:57+06:00 — complete
+- What was done: User-feedback pass on the finished Step 9 UI (no Step 10 work started):
+  1. Removed the "Edit this day" `TextButton` from Daily rows. Tapping the task title is now the only editor entry point; the `dailies/occurrence/{occurrenceId}` route is retained for Step 12 Calendar but no row button opens it.
+  2. "Every N" remains prefilled with `1`; the hint was changed to `2` so the prefilled default is visually obvious, and a test now locks the visible `1`.
+  3. Replaced the clipped weekly `FilterChip` row with seven 46dp circular `Surface` buttons using short labels (`Sun`…`Sat`) and full-day content descriptions, so all seven fit.
+  4. Moved full subtask management into the parent Daily editor (series *and* occurrence modes): view/create/edit-by-title/delete via the shared `DailySubtaskSection`. For an existing series the editor edits the occurrence for `max(startDate, today)`; for a brand-new series subtasks are staged with negative ids and committed to the first occurrence on Save. The quick "Add subtask" on outer list rows is unchanged.
+  5. Added an 88dp `Spacer` as the last `LazyColumn` item so the inline "Add" button clears the FAB (56dp FAB + ~16dp margin + 16dp content padding) without excessive blank space.
+  6. Skipped rows now only move to the Skipped section; gray + strikethrough are applied to Completed rows only.
+- Verification: `:app:testDebugUnitTest` → BUILD SUCCESSFUL, **83 tests, 0 failures, 0 errors, 0 skipped** (was 81; +2 new tests: series-editor inline subtask CRUD, new-series staged-subtask save; plus default `everyN`, seven weekday buttons and skip-not-struck assertions). `:app:assembleDebug` → BUILD SUCCESSFUL. `SPEC.md` untouched; DB remains v2 with no schema/migration change; all work uncommitted.
+- Files touched: `ui/dailies/{DailiesScreen,DailyEditorScreen,DailyEditorViewModel,DailySubtaskSection}.kt`, `ui/MnlistsApp.kt`, `res/values/strings.xml`, `app/src/test/java/com/example/mnlists/ui/dailies/{DailyUiTest,DailyFeatureTest}.kt`, `ACTIVITY.md`.
+- Notes / decisions: series-mode subtasks target the `max(startDate, today)` occurrence via `repository.ensureOccurrence`, resolved again when the start date changes and after Save; series edits still never rewrite existing occurrence completion. The inline subtask card stays (a `TextField` in an `AlertDialog` never settles under Robolectric). The occurrence route is kept deliberately for Step 12 rather than deleted.
+
 ## Next Up
 - Step 10: Reordering & drag handle everywhere — wire manual drag reorder (currently only tap-to-collapse on Dailies/To-Do subtasks and Habits rows have a static handle), persist `sortOrder`, and expose long-press drag on list rows.
 
@@ -147,9 +160,9 @@
 - **Tab-entry / date-change generation trigger deferred to Step 9** (the Dailies tab is still a placeholder). The `MainActivity` on-open trigger already covers §9's "since last app open" backfill; a long-running app crossing midnight needs the Step 9 tab-entry check to generate the new day.
 - **Backfill is capped at 365 dates per call** (`MAX_CATCH_UP_DATES`, mirroring the habit engine's 400-cycle cap). A series with more than a year of missed days catches up over successive opens rather than in one pass. No occurrence is ever lost or duplicated.
 - **Step 9 runtime verification is JVM-only**: Robolectric + real Room cover the Dailies list, Skip, subtasks and both editors; no on-device run (phone still in active use). Hilt graph, FAB → create navigation, real date picker and touch/scroll need a device smoke test.
-- **Dailies subtasks are parented to occurrences**, not the series (`ParentType.DAILY_OCCURRENCE`): each generated day gets its own fresh child list with no schema change, but the whole-series editor intentionally has no subtask section (children live on the day/occurrence editor).
+- **Dailies subtasks are parented to occurrences**, not the series (`ParentType.DAILY_OCCURRENCE`): each generated day gets its own fresh child list with no schema change. As of Step 9.5 the whole-series editor also manages the current day's children (staged until Save for a new series); Step 12 Calendar still uses the occurrence route for one-day edits.
 - **Subtask add/edit is an inline card on Dailies too** (same Robolectric text-field-in-dialog limitation as Step 7); the delete confirmation stays a dialog.
-- **"Edit this day" has a title-specific content description** ("Edit this day for &lt;title&gt;") because every row shows the same visible text; it also helps assistive tech.
+- **"Edit this day" was removed in Step 9.5** (its row button and title-specific content description no longer exist). Step 9's note above is kept for history; tapping the row title now opens the editor.
 
 ## Recovery Notes
 - Working dir: `D:\Shadid\Pro_Pro`; SDK: `C:\Users\HP\AppData\Local\Android\Sdk` (platforms android-36.1, android-37.0; build-tools 36.0.0).
@@ -160,7 +173,7 @@
 - Habits UI: list in `ui/habits/HabitsScreen.kt`; editor in `ui/habits/HabitEditorScreen.kt` (borderless `InputCard` / `DropdownCard` / `DirectionToggle` helpers are private at the bottom of that file; canvas colour is `surfaceContainer`).
 - To-Do UI: list in `ui/todos/TodosScreen.kt`; editor in `ui/todos/TodoEditorScreen.kt` (same private input-card pattern, plus the inline `SubtaskEditorCard`); shared gray/strike + nullable date label in `ui/todos/TodoPresentation.kt`; date helpers in `ui/todos/TodoDates.kt`; routes `todos/new` and `todos/edit/{todoId}`. List order comes from `TodoDao` (`isCompleted ASC, sortOrder ASC`), and the screen only splits open vs Completed. Subtasks are queried per parent by `SubtaskDao` with `sortOrder ASC, id ASC` (completion never reorders them).
 - Daily generation (Step 8): pure engine in `data/daily/DailyOccurrenceEngine.kt` (epoch days; `datesToGenerate(daily, lastGeneratedDate, today)`), transactional/idempotent `DailyOccurrenceManager.kt` (inject in tests as `DailyOccurrenceManager(database)`), triggered on open in `MainActivity`. Skip wrappers are on `DailyRepository` (`skipOccurrence` / `unskipOccurrence`). Tests: `app/src/test/java/com/example/mnlists/data/daily/{DailyOccurrenceEngineTest,DailyOccurrenceManagerTest}.kt` (Robolectric tests need `.setQueryExecutor(DIRECT_EXECUTOR).setTransactionExecutor(DIRECT_EXECUTOR)` on the in-memory builder for synchronous assertions). No Room schema change — still v2.
-- Dailies UI (Step 9): list/route in `ui/dailies/DailiesScreen.kt` (`DailiesRoute` calls `generateTodayOccurrences()` on tab entry); series vs occurrence editors in `ui/dailies/DailyEditor{Screen,ViewModel}.kt` with modes `DailyEditorMode.SERIES`/`OCCURRENCE`; inline To-Do-style child UI in `DailySubtaskSection.kt`; join/presentation helpers in `DailyPresentation.kt`/`DailyDates.kt`. Subtasks use `ParentType.DAILY_OCCURRENCE`; routes `dailies/new`, `dailies/edit/{dailyId}`, `dailies/occurrence/{occurrenceId}` are in `Destinations.kt` (Step 12 Calendar should open the occurrence route). Tests: `app/src/test/java/com/example/mnlists/ui/dailies/{DailyFeatureTest,DailyUiTest}.kt`.
+- Dailies UI (Step 9 + 9.5): list/route in `ui/dailies/DailiesScreen.kt` (`DailiesRoute` calls `generateTodayOccurrences()` on tab entry; last `LazyColumn` item is an 88dp FAB-clearance `Spacer`; no row-level "Edit this day" button); series vs occurrence editors in `ui/dailies/DailyEditor{Screen,ViewModel}.kt` with modes `DailyEditorMode.SERIES`/`OCCURRENCE` — both now host `DailySubtaskSection`, series mode targets `max(startDate, today)` and new-series children are staged with negative ids until `save()` commits them; inline To-Do-style child UI in `DailySubtaskSection.kt`; join/presentation helpers in `DailyPresentation.kt`/`DailyDates.kt`. Subtasks use `ParentType.DAILY_OCCURRENCE`; routes `dailies/new`, `dailies/edit/{dailyId}`, `dailies/occurrence/{occurrenceId}` are in `Destinations.kt` (Step 12 Calendar should open the occurrence route). Tests: `app/src/test/java/com/example/mnlists/ui/dailies/{DailyFeatureTest,DailyUiTest}.kt`.
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` and `2.json` (current DB version **2**, `MIGRATION_1_2` registered in `DatabaseModule`).
 - Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources), and `unitTests.all { maxHeapSize = "3g" }` is required because Robolectric's native text-layout registry exhausts the default 512 MB heap. Do not put text fields in dialogs in Robolectric tests (they never reach idle) — keep input in the main window. PowerShell may exit 1 on benign JVM/Espresso stderr warnings; trust the BUILD SUCCESSFUL line and the JUnit XMLs under `app/build/test-results/`.

@@ -133,7 +133,7 @@
     <string name="daily_repeat_weekly">Weekly</string>
     <string name="daily_repeat_monthly">Monthly</string>
     <string name="daily_every_n_label">Every N</string>
-    <string name="daily_every_n_hint">1</string>
+    <string name="daily_every_n_hint">2</string>
     <string name="daily_every_n_error">Enter a whole number (1 or more).</string>
     <string name="daily_every_n_support">Days, weeks or months between occurrences.</string>
     <string name="daily_weekdays_label">Repeat on</string>
@@ -144,8 +144,6 @@
     <string name="daily_unskip">Unskip</string>
     <string name="daily_skip_description">Skip %1$s</string>
     <string name="daily_unskip_description">Unskip %1$s</string>
-    <string name="daily_edit_occurrence">Edit this day</string>
-    <string name="daily_edit_occurrence_description">Edit this day for %1$s</string>
     <string name="daily_done_label">Done</string>
     <string name="daily_occurrence_readonly">To change the title, note or schedule, edit the whole series from the Dailies list.</string>
     <string name="daily_save">Save</string>

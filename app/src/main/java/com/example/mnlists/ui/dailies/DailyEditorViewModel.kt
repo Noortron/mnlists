@@ -44,10 +44,11 @@ data class DailyEditorUiState(
 )
 
 /**
- * Create/edit form for a Daily. [DailyEditorMode.SERIES] edits title, note and
- * schedule on the [Daily] row; [DailyEditorMode.OCCURRENCE] cannot change those
- * fields — it only toggles completion/skip and edits that day's subtasks.
- * Occurrences and subtasks are never rewritten by a series edit.
+ * Create/edit form for a Daily. [DailyEditorMode.SERIES] edits title, note,
+ * schedule **and the current day's subtasks** on the parent editor;
+ * [DailyEditorMode.OCCURRENCE] cannot change series fields — it only toggles
+ * completion/skip and edits that day's subtasks. Series edits never rewrite
+ * occurrences; subtasks belong to the target occurrence, not the schedule.
  */
 @HiltViewModel
 class DailyEditorViewModel @Inject constructor(
@@ -72,6 +73,17 @@ class DailyEditorViewModel @Inject constructor(
     var subtasks by mutableStateOf<List<Subtask>>(emptyList())
         private set
 
+    /** Occurrence that owns the subtasks shown in this editor. */
+    private var subtaskOccurrenceId: Long = occurrenceId
+
+    /**
+     * Subtasks entered before a brand-new series has been saved. They use
+     * negative ids so the shared row UI can still check/edit/delete them, and
+     * are committed to the first occurrence when [save] succeeds.
+     */
+    private val draftSubtasks = mutableListOf<Subtask>()
+    private var nextDraftId = -1L
+
     init {
         when (mode) {
             DailyEditorMode.OCCURRENCE -> loadOccurrence()
@@ -95,6 +107,8 @@ class DailyEditorViewModel @Inject constructor(
                     weekdays = daily.weekdays,
                 )
             }
+            resolveSubtaskOccurrence()
+            refreshSubtasks()
         }
     }
 
@@ -132,6 +146,12 @@ class DailyEditorViewModel @Inject constructor(
 
     fun setStartDate(epochDay: Long) {
         uiState = uiState.copy(startDate = epochDay)
+        if (mode == DailyEditorMode.SERIES && dailyId > 0L) {
+            viewModelScope.launch {
+                resolveSubtaskOccurrence()
+                refreshSubtasks()
+            }
+        }
     }
 
     fun setRepeatType(value: RepeatType) {
@@ -191,6 +211,11 @@ class DailyEditorViewModel @Inject constructor(
             }
             // The schedule may now cover dates that had no occurrence yet.
             occurrenceManager.generateDueOccurrences(today = DailyDates.today())
+            // Newly created series' subtasks were staged; commit them to the
+            // first occurrence now that a real dailyId exists.
+            resolveSubtaskOccurrence()
+            commitDraftSubtasks()
+            refreshSubtasks()
             uiState = uiState.copy(isSaving = false)
             onSaved()
         }
@@ -218,6 +243,14 @@ class DailyEditorViewModel @Inject constructor(
 
     fun setSubtaskCompleted(subtaskId: Long, completed: Boolean) {
         viewModelScope.launch {
+            if (isDraft(subtaskId)) {
+                val index = draftSubtasks.indexOfFirst { it.id == subtaskId }
+                if (index >= 0) {
+                    draftSubtasks[index] = draftSubtasks[index].copy(isCompleted = completed)
+                    subtasks = draftSubtasks.toList()
+                }
+                return@launch
+            }
             repository.setSubtaskCompleted(subtaskId, completed)
             refreshSubtasks()
         }
@@ -225,15 +258,37 @@ class DailyEditorViewModel @Inject constructor(
 
     fun addSubtask(title: String, note: String, deadline: Long?, onResult: (Boolean) -> Unit) {
         val cleanTitle = title.trim()
-        if (cleanTitle.isEmpty() || mode != DailyEditorMode.OCCURRENCE) {
+        if (cleanTitle.isEmpty()) {
             onResult(false)
+            return
+        }
+        val parentId = if (mode == DailyEditorMode.OCCURRENCE) {
+            occurrenceId
+        } else {
+            subtaskOccurrenceId
+        }
+        if (parentId == 0L) {
+            // Brand-new series: stage the subtask until Save creates the daily.
+            draftSubtasks.add(
+                Subtask(
+                    id = nextDraftId--,
+                    parentType = ParentType.DAILY_OCCURRENCE,
+                    parentId = 0L,
+                    title = cleanTitle,
+                    note = note.trim(),
+                    deadline = deadline,
+                    sortOrder = draftSubtasks.size + 1.0,
+                ),
+            )
+            subtasks = draftSubtasks.toList()
+            onResult(true)
             return
         }
         viewModelScope.launch {
             repository.addSubtask(
                 Subtask(
                     parentType = ParentType.DAILY_OCCURRENCE,
-                    parentId = occurrenceId,
+                    parentId = parentId,
                     title = cleanTitle,
                     note = note.trim(),
                     deadline = deadline,
@@ -257,6 +312,21 @@ class DailyEditorViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            if (isDraft(subtaskId)) {
+                val index = draftSubtasks.indexOfFirst { it.id == subtaskId }
+                if (index >= 0) {
+                    draftSubtasks[index] = draftSubtasks[index].copy(
+                        title = cleanTitle,
+                        note = note.trim(),
+                        deadline = deadline,
+                    )
+                    subtasks = draftSubtasks.toList()
+                    onResult(true)
+                } else {
+                    onResult(false)
+                }
+                return@launch
+            }
             val current = repository.getSubtask(subtaskId)
             if (current != null) {
                 repository.updateSubtask(
@@ -270,6 +340,11 @@ class DailyEditorViewModel @Inject constructor(
 
     fun deleteSubtask(subtaskId: Long) {
         viewModelScope.launch {
+            if (isDraft(subtaskId)) {
+                draftSubtasks.removeAll { it.id == subtaskId }
+                subtasks = draftSubtasks.toList()
+                return@launch
+            }
             repository.deleteSubtask(subtaskId)
             refreshSubtasks()
         }
@@ -288,18 +363,46 @@ class DailyEditorViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshSubtasks() {
-        if (mode != DailyEditorMode.OCCURRENCE) {
-            subtasks = emptyList()
-            return
+    private fun isDraft(subtaskId: Long): Boolean = subtaskId < 0L
+
+    /**
+     * Points series-mode subtasks at the occurrence for `max(startDate, today)`
+     * so the shared UI edits a real day's list rather than an abstract series.
+     */
+    private suspend fun resolveSubtaskOccurrence() {
+        if (mode != DailyEditorMode.SERIES || dailyId == 0L) return
+        val targetDate = maxOf(uiState.startDate, DailyDates.today())
+        subtaskOccurrenceId = repository.ensureOccurrence(dailyId, targetDate)?.id ?: 0L
+    }
+
+    /** Writes staged subtasks to the first occurrence once the series exists. */
+    private suspend fun commitDraftSubtasks() {
+        if (draftSubtasks.isEmpty() || subtaskOccurrenceId == 0L) return
+        draftSubtasks.forEach { draft ->
+            repository.addSubtask(draft.copy(id = 0L, parentId = subtaskOccurrenceId))
         }
-        subtasks = repository.getSubtasks(occurrenceId)
-        val occurrence = repository.getOccurrence(occurrenceId)
-        if (occurrence != null) {
-            uiState = uiState.copy(
-                isCompleted = occurrence.isCompleted,
-                isSkipped = occurrence.isSkipped,
-            )
+        draftSubtasks.clear()
+    }
+
+    private suspend fun refreshSubtasks() {
+        when (mode) {
+            DailyEditorMode.OCCURRENCE -> {
+                subtasks = repository.getSubtasks(occurrenceId)
+                val occurrence = repository.getOccurrence(occurrenceId)
+                if (occurrence != null) {
+                    uiState = uiState.copy(
+                        isCompleted = occurrence.isCompleted,
+                        isSkipped = occurrence.isSkipped,
+                    )
+                }
+            }
+            DailyEditorMode.SERIES -> {
+                subtasks = if (subtaskOccurrenceId > 0L) {
+                    repository.getSubtasks(subtaskOccurrenceId)
+                } else {
+                    draftSubtasks.toList()
+                }
+            }
         }
     }
 }

@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +47,6 @@ import com.example.mnlists.ui.components.PlaceholderContent
 @Composable
 fun DailiesRoute(
     onOpenSeries: (Long) -> Unit,
-    onOpenOccurrence: (Long) -> Unit,
     viewModel: DailiesViewModel = hiltViewModel(),
 ) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
@@ -63,7 +64,6 @@ fun DailiesRoute(
         subtasksByOccurrence = subtasks,
         today = today,
         onOpenSeries = onOpenSeries,
-        onOpenOccurrence = onOpenOccurrence,
         onToggleCompleted = viewModel::setCompleted,
         onToggleSkipped = viewModel::setSkipped,
         onToggleSubtask = viewModel::setSubtaskCompleted,
@@ -79,9 +79,9 @@ fun DailiesRoute(
 
 /**
  * Dailies list (SPEC §4.3/§4.6). Today's occurrences are split into open,
- * Skipped and Completed sections; tapping a title opens the whole-series
- * editor, while "Edit this day" opens the occurrence-only editor (which the
- * Calendar tab will also use in Step 12).
+ * Skipped and Completed sections. Tapping a title is now the single entry
+ * point to the Daily editor (including its subtasks); the old "Edit this day"
+ * row button is gone. Skipped rows are only moved, never dimmed or struck.
  */
 @Composable
 fun DailiesScreen(
@@ -89,7 +89,6 @@ fun DailiesScreen(
     subtasksByOccurrence: Map<Long, List<Subtask>>,
     today: Long,
     onOpenSeries: (Long) -> Unit,
-    onOpenOccurrence: (Long) -> Unit,
     onToggleCompleted: (Long, Boolean) -> Unit,
     onToggleSkipped: (Long, Boolean) -> Unit,
     onToggleSubtask: (Long, Boolean) -> Unit,
@@ -134,7 +133,6 @@ fun DailiesScreen(
                         }
                     },
                     onOpenSeries = { onOpenSeries(entry.daily.id) },
-                    onOpenOccurrence = { onOpenOccurrence(entry.occurrence.id) },
                     onToggleCompleted = { onToggleCompleted(entry.occurrence.id, it) },
                     onToggleSkipped = { onToggleSkipped(entry.occurrence.id, it) },
                     onToggleSubtask = onToggleSubtask,
@@ -168,7 +166,6 @@ fun DailiesScreen(
                         }
                     },
                     onOpenSeries = { onOpenSeries(entry.daily.id) },
-                    onOpenOccurrence = { onOpenOccurrence(entry.occurrence.id) },
                     onToggleCompleted = { onToggleCompleted(entry.occurrence.id, it) },
                     onToggleSkipped = { onToggleSkipped(entry.occurrence.id, it) },
                     onToggleSubtask = onToggleSubtask,
@@ -202,7 +199,6 @@ fun DailiesScreen(
                         }
                     },
                     onOpenSeries = { onOpenSeries(entry.daily.id) },
-                    onOpenOccurrence = { onOpenOccurrence(entry.occurrence.id) },
                     onToggleCompleted = { onToggleCompleted(entry.occurrence.id, it) },
                     onToggleSkipped = { onToggleSkipped(entry.occurrence.id, it) },
                     onToggleSubtask = onToggleSubtask,
@@ -216,6 +212,12 @@ fun DailiesScreen(
                     modifier = Modifier.animateItem(),
                 )
             }
+        }
+
+        // Keeps the last row's inline "Add subtask" form reachable above the FAB.
+        // 56dp FAB + ~16dp clearance + 16dp content padding.
+        item(key = "fab-clearance") {
+            Spacer(Modifier.height(88.dp))
         }
     }
 }
@@ -238,7 +240,6 @@ private fun DailyRow(
     collapsed: Boolean,
     onToggleCollapsed: () -> Unit,
     onOpenSeries: () -> Unit,
-    onOpenOccurrence: () -> Unit,
     onToggleCompleted: (Boolean) -> Unit,
     onToggleSkipped: (Boolean) -> Unit,
     onToggleSubtask: (Long, Boolean) -> Unit,
@@ -263,7 +264,8 @@ private fun DailyRow(
         if (collapsed) R.string.todo_subtask_expand else R.string.todo_subtask_collapse,
         title,
     )
-    val contentColor = if (completed || skipped) {
+    // Only Completed rows are dimmed; Skipped rows just move sections (SPEC §4.6).
+    val contentColor = if (completed) {
         MaterialTheme.colorScheme.onSurfaceVariant
     } else {
         MaterialTheme.colorScheme.onSurface
@@ -288,7 +290,7 @@ private fun DailyRow(
                         .padding(vertical = 6.dp),
                 ) {
                     Text(
-                        text = title.decorated(completed || skipped),
+                        text = title.decorated(completed),
                         style = MaterialTheme.typography.titleMedium,
                         color = contentColor,
                         maxLines = 2,
@@ -296,7 +298,7 @@ private fun DailyRow(
                     )
                     if (entry.daily.note.isNotBlank()) {
                         Text(
-                            text = entry.daily.note.decorated(completed || skipped),
+                            text = entry.daily.note.decorated(completed),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -327,18 +329,6 @@ private fun DailyRow(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val editDayDescription = stringResource(
-                    R.string.daily_edit_occurrence_description,
-                    title,
-                )
-                TextButton(
-                    onClick = onOpenOccurrence,
-                    modifier = Modifier
-                        .heightIn(min = 40.dp)
-                        .semantics { contentDescription = editDayDescription },
-                ) {
-                    Text(stringResource(R.string.daily_edit_occurrence))
-                }
                 TextButton(
                     onClick = { onToggleSkipped(!skipped) },
                     modifier = Modifier

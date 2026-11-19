@@ -197,9 +197,6 @@ fun MnlistsApp(
                     onOpenSeries = { dailyId ->
                         navController.navigate(MnlistsRoutes.dailyEditorRoute(dailyId))
                     },
-                    onOpenOccurrence = { occurrenceId ->
-                        navController.navigate(MnlistsRoutes.dailyOccurrenceEditorRoute(occurrenceId))
-                    },
                 )
             }
             composable(MnlistsRoutes.DAILY_NEW) {

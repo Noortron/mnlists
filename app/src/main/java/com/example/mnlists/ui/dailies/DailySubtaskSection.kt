@@ -56,8 +56,9 @@ import com.example.mnlists.data.local.entity.Subtask
  * grayed + struck through in place. The add/edit form is an inline card —
  * a TextField inside a dialog never settles under Robolectric.
  *
- * Shared by the Dailies list (inside an expanded row) and the occurrence
- * editor, so the Calendar edit flow gets identical behaviour.
+ * Shared by the Dailies list (inside an expanded row), the whole-series
+ * editor and the occurrence editor, so every entry point gets identical
+ * behaviour.
  */
 @Composable
 internal fun DailySubtaskSection(
