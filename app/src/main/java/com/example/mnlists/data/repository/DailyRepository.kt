@@ -97,6 +97,12 @@ class DailyRepository @Inject constructor(
     suspend fun setOccurrenceSkipped(occurrenceId: Long, skipped: Boolean) =
         occurrenceDao.setSkipped(occurrenceId, skipped)
 
+    /** SPEC §4.3 Skip option: skip just this day's occurrence. */
+    suspend fun skipOccurrence(occurrenceId: Long) = setOccurrenceSkipped(occurrenceId, true)
+
+    /** Undo a skip on just this day's occurrence. */
+    suspend fun unskipOccurrence(occurrenceId: Long) = setOccurrenceSkipped(occurrenceId, false)
+
     fun observeSubtasks(occurrenceId: Long): Flow<List<Subtask>> =
         subtaskDao.observeForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)
 

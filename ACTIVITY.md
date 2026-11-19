@@ -1,9 +1,9 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 8
-- Last updated: 2026-11-19T14:31:29+06:00
-- Overall: 8/16 steps complete (plus a completed Habits UI improvement pass)
+- Current step: 9
+- Last updated: 2026-11-19T19:42:29+06:00
+- Overall: 9/16 steps complete (plus a completed Habits UI improvement pass)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -14,7 +14,7 @@
 - [x] Step 5: Habits: auto-reset + history
 - [x] Step 6: To-Do's: list + create/edit
 - [x] Step 7: Subtasks (To-Do's)
-- [ ] Step 8: Dailies: model + occurrence generation
+- [x] Step 8: Dailies: model + occurrence generation
 - [ ] Step 9: Dailies UI + subtasks + skip
 - [ ] Step 10: Reordering & drag handle everywhere
 - [ ] Step 11: Reminders & notifications
@@ -117,21 +117,10 @@
 - Notes / decisions: Subtasks and reminders are intentionally absent from the editor until Steps 7 and 11; the delete dialog already warns that they are removed. Open rows keep the repository/DAO `sortOrder` rather than sorting by due date, so Step 10's manual reordering will not have to undo a list-side sort. The list/form helpers are duplicated from `HabitEditorScreen` (private composables) instead of being shared; a polish pass can unify them. No Room entity/DAO/schema change.
 
 ### Task 1 — To-Do due dates are optional (user override of SPEC §9) — 2026-11-19T14:31:29+06:00
-- What was done:
-  - `data/local/entity/Todo.kt`: `dueDate: Long?` (nullable) instead of a non-null epoch day.
-  - `data/local/MnlistsDatabase.kt`: version **2** + `MIGRATION_1_2`. SQLite cannot drop a `NOT NULL` constraint in place, so the migration creates `todos_new` with a nullable `dueDate`, copies every row, drops/renames the table and recreates the three indexes (`isCompleted`, `dueDate`, `sortOrder`). Exported schema `2.json` confirms `"dueDate" INTEGER` (nullable).
-  - `di/DatabaseModule.kt`: `MIGRATION_1_2` attached to the `Room.databaseBuilder` chain (no destructive fallback).
-  - `ui/todos/TodoEditorViewModel.kt`: `dueDate: Long? = null`, no due-date error state, `setDueDate(Long?)` and a save path that writes `null`.
-  - `ui/todos/TodoEditorScreen.kt`: the date card shows "No deadline" when unset and is never in an error state; Today / Tomorrow / Next week / **Clear** chips set or clear the date.
-  - `ui/todos/TodosScreen.kt` + `ui/todos/TodoPresentation.kt`: an unplanned row renders **no date at all** and can never show the overdue colour; dated rows keep "Due today / Due tomorrow / Due <date> / Overdue · <date>".
-  - `res/values/strings.xml`: "No deadline", optional-date support text and "Clear".
-- **Verification:** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**, **45 tests, 0 failures, 0 errors, 0 skipped**. `:app:assembleDebug` → **BUILD SUCCESSFUL**.
-  - `TodoFeatureTest.editor_requiresOnlyTitle_thenCreatesTodoWithoutDueDate`: a blank title still refuses to save and stores nothing; a title alone saves with `dueDate == null`.
-  - `TodoFeatureTest.editor_canClearAnExistingDueDate`: an existing dated to-do is loaded, cleared and saved as `null`.
-  - `TodoUiTest.list_unplannedTodoShowsNoDate_andNeverLooksOverdue`: exactly one "Overdue" label (the dated row) and no "Due …" text for the unplanned row.
-  - `TodoUiTest.editor_savesWithoutDueDate_andClearingADateStaysEmpty`: the new form shows "No deadline", picking Today then Clear returns to it, and Save persists `null`.
-- Files touched: `data/local/entity/Todo.kt`, `data/local/MnlistsDatabase.kt`, `di/DatabaseModule.kt`, `ui/todos/TodoEditorViewModel.kt`, `ui/todos/TodoEditorScreen.kt`, `ui/todos/TodosScreen.kt`, `res/values/strings.xml`, `app/src/test/java/com/example/mnlists/ui/todos/TodoFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoUiTest.kt`; new `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/2.json`, new `ui/todos/TodoPresentation.kt`.
-- Notes / decisions: this deliberately overrides SPEC §9 ("To-Do due date mandatory") on the user's instruction; `SPEC.md` was **not** modified. The list keeps repository `sortOrder`; undated rows simply have nothing to render.
+- What was done: `Todo.dueDate` is now `Long?`; Room v2 + `MIGRATION_1_2` recreates `todos` (SQLite cannot drop NOT NULL) and is registered in `DatabaseModule`; editor shows "No deadline" with a Clear chip and no validation; list renders no date (and never overdue) for undated rows.
+- **Verification:** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**, **45 tests, 0 failures**. `:app:assembleDebug` → **BUILD SUCCESSFUL**. Four new tests cover title-only save, clearing a date, no-date list rendering and the editor's Clear chip.
+- Files touched: `Todo.kt`, `MnlistsDatabase.kt` (+ `app/schemas/…/2.json`), `DatabaseModule.kt`, `TodoEditor{ViewModel,Screen}.kt`, `TodosScreen.kt`, `TodoPresentation.kt`, `strings.xml`, `TodoFeatureTest.kt`, `TodoUiTest.kt`.
+- Notes / decisions: deliberate user override of SPEC §9; `SPEC.md` untouched. Migration is schema-verified, not device-verified (see Deviations).
 
 ### Step 7 — Subtasks (To-Do's) — 2026-11-19T14:31:29+06:00
 - What was done:
@@ -147,19 +136,26 @@
 - Files touched: `data/local/dao/SubtaskDao.kt`, `data/repository/TodoRepository.kt`, `ui/todos/TodoEditorViewModel.kt`, `ui/todos/TodoEditorScreen.kt`, `res/values/strings.xml`, `app/build.gradle.kts` (test heap), `app/src/test/java/com/example/mnlists/ui/todos/TodoFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoUiTest.kt`; new `ui/todos/TodoPresentation.kt`.
 - Notes / decisions: subtasks persist live (each add/edit/toggle hits Room immediately) rather than being staged until Save, which keeps the parent/child cascade transactional and the tests honest. The add/edit form is an **inline card, not a dialog**: a `TextField` inside a second window never settles under Robolectric (`AppNotIdleException` / infinite clock awaiter) even with `LocalCursorBlinkEnabled=false` and `BasicTextField`, so a dialog would have made the required Compose tests impossible. The subtask delete confirmation is still a plain `AlertDialog` because it has no text input. List-level subtask expansion and reordering stay with Step 10; only the editor rows collapse here.
 
-## Improvements
+### Step 8 — Dailies: model + occurrence generation — 2026-11-19T19:42:29+06:00
+- What was done:
+  - `data/daily/DailyOccurrenceEngine.kt` (pure calculator): scheduled dates are epoch-day based (timezone/DST safe). **Daily** = every `everyN` days from `startDate`; **Weekly** = the picked weekdays (start date's weekday when none picked) every `everyN` weeks; **Monthly** = the start date's day-of-month every `everyN`-th month, clamped to the last day of short months. `datesToGenerate(daily, lastGeneratedDate, today)` returns only the missing dates after the last generated one (or from `startDate` when none exists), so missed days are backfilled and existing rows are never rewritten. `everyN < 1` falls back to 1; catch-up is capped at 365 dates; a future start / backwards clock generates nothing.
+  - `data/daily/DailyOccurrenceManager.kt` (`@Singleton`): in one Room transaction, loops all series and inserts a **fresh, incomplete, unskipped** `DailyOccurrence` per missing date (sortOrder = the series' creation index). A `Mutex` + the unique `(dailyId, date)` index make repeated calls idempotent. `@return` = number of new rows.
+  - `DailyRepository`: added explicit `skipOccurrence` / `unskipOccurrence` wrappers over `setOccurrenceSkipped`; completion/subtask cascade and skip were already scoped to one occurrence by Step 3. No Room entity/DAO/schema change — DB stays at version 2, no migration needed.
+  - Trigger: `MainActivity.onCreate` now injects `DailyOccurrenceManager` and launches `generateDueOccurrences()` on app open (separate coroutine from the habit reset), which is what "since last app open" backfill relies on.
+- **Verification (explicit):** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**; JUnit totals **67 tests, 0 failures, 0 errors, 0 skipped** (previous 45 + `DailyOccurrenceEngineTest` 12 + `DailyOccurrenceManagerTest` 10). `:app:assembleDebug` → **BUILD SUCCESSFUL** (Hilt injection compiles).
+  - `DailyOccurrenceEngineTest` (plain JUnit): consecutive daily days; never before start date; Every-N(3) days; weekly Mon/Wed/Fri; weekly Every-N(2) alternating weeks; weekly without picks uses the start weekday; monthly Jan 31 → Feb 28 → Mar 31 → Apr 30; monthly Every-N(2); backfill-after-last date; future start and backwards clock; N=0 fallback; 365-date cap.
+  - `DailyOccurrenceManagerTest` (Robolectric + real in-memory Room + real manager/repository): backfills all missed days as incomplete/unskipped and they show up in the live Flow; a second run adds nothing and advancing a day adds exactly one; weekly picks, monthly clamping and Every-N cadence through the manager; future/backwards clock adds none; checking one day leaves siblings incomplete with null `completedAt` and unchecking restores it; Skip marks only that row, does not complete it, does not delete the series, can be undone, and is not inherited by a newly generated day; parent→child→parent cascade is scoped to one occurrence; multiple series generate independently in one pass (10 daily + 3 weekly + 1 monthly = 14).
+- Files touched:
+  - New: `data/daily/DailyOccurrenceEngine.kt`, `data/daily/DailyOccurrenceManager.kt`, `app/src/test/java/com/example/mnlists/data/daily/DailyOccurrenceEngineTest.kt`, `app/src/test/java/com/example/mnlists/data/daily/DailyOccurrenceManagerTest.kt`
+  - Edited: `data/repository/DailyRepository.kt` (skip/unskip wrappers), `MainActivity.kt` (on-open generation trigger), `ACTIVITY.md`
+- Notes / decisions: per-series "last generated occurrence" is the backfill anchor instead of a global last-open timestamp — every open generates up to today, so it realizes §9's "since last app open" while also backfilling a newly created series from its own start date. Creation/edit UI, subtasks UI, the visible Skip button and the Dailies-tab/date-change trigger remain in Step 9; this step is the model + generation layer and its proof.
 ### Habits UI + navigation polish — 2026-11-19T12:55:41+06:00 — complete
-- **Editor redesign:** the create/edit page now uses a slightly darker `surfaceContainer` canvas with borderless input cards (`surface`, no outlines or underlines) grouped under **Details / Scheduling / Counter** headers. The note stays the emphasised field (primary-coloured label, 4–8 line input).
-- **Reset schedule:** full-width dropdown card (label + current value + chevron) instead of an outlined text field. Options are **Daily / Weekly / Every N days** only — **Monthly was removed from the UI** (see Deviations). The weekly reset-day uses the same full-width dropdown card.
-- **Counter options:** checkboxes/descriptions replaced by two round 60dp **− / +** toggles side by side under Scheduling. Enabled = filled primary circle with on-primary icon; disabled = outlined transparent circle with muted icon. Tapping toggles `allowDown`/`allowUp`; the "allow at least one direction" validation still blocks saving when both are off.
-- **Navigation flicker:** `NavHost` now uses a 260ms **overlapping slide** (new screen slides in from the right, outgoing screen shifts only 1/6 left and stays opaque; pop reversed) instead of the long default fade, so the background/base screen cannot flash through. The bottom bar animates in/out (expand/shrink + fade) and the top bar adopts the editor canvas colour on habit pages, removing layout/colour jumps between list and editor.
-- **Runtime verification (partial device + JVM):** the debug APK was installed and launched on the connected physical device; the Habits tab rendered correctly in the light palette (FAB, animated tab bar, empty state). The editor layout, dropdown contents and navigation transition could not be captured because the device was in active use (it switched to another app mid-check), so those still need a hands-on look. On the JVM everything is covered: `:app:testDebugUnitTest` → **14 tests, 0 failures, 0 errors, 0 skipped** (`DaoSmokeTest` 5, `HabitsFeatureTest` 5, `HabitsUiTest` 3, `ExampleUnitTest` 1). New `editor_usesRoundCounterToggles_andOffersNoMonthlyReset` toggles −/+ in the real composable, opens the schedule menu, asserts **Monthly is absent**, picks "Every N days", saves, and checks the stored habit is − only with an Every-N schedule. Existing list + delete-confirm UI tests still pass (delete now scrolls into view first). `:app:assembleDebug` → **BUILD SUCCESSFUL**.
-- **Not runtime-verified:** transition smoothness/flicker and the dark-palette editor still need a device smoke test; the nav wiring is compile-verified and UI behaviour is covered by the JVM Compose tests.
-- **Files touched:** `ui/habits/HabitEditorScreen.kt` (rewritten), `ui/MnlistsApp.kt` (NavHost transitions, animated bottom bar, editor top-bar colour), `res/values/strings.xml` (new section/counter strings, removed checkbox strings), `app/src/test/java/com/example/mnlists/ui/habits/HabitsUiTest.kt` (new test + scroll-to for delete).
-- **Data layer untouched:** no entity/DAO/repository/Room schema change; no Step 5 work was started.
+- Editor redesign (borderless input cards, emphasised note, round −/+ toggles, no Monthly option), 260ms overlapping NavHost slide + animated bottom bar, editor top-bar colour.
+- **Verification:** partial device check (Habits list rendered); JVM suite at the time 14 tests / 0 failures. Transition smoothness and the dark-palette editor still need a device smoke test.
+- Files touched: `HabitEditorScreen.kt`, `MnlistsApp.kt`, `strings.xml`, `HabitsUiTest.kt`. No data-layer or schema change.
 
 ## Next Up
-- Step 8: Dailies — model + occurrence generation.
+- Step 9: Dailies UI + subtasks + skip — list, expand/collapse, per-occurrence completion, visible Skip button, series-vs-occurrence editing rules, and the tab-entry/date-change generation trigger.
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -182,6 +178,9 @@
 - **List-level subtask expansion/reorder is deferred to Step 10** (as planned); Step 7 implements expansion/collapse only for rows inside the editor.
 - Test-only deprecation warning: `createComposeRule()` suggests the v2 rule (StandardTestDispatcher). The current rule matches the existing Habits UI tests and passes; migration can wait for the polish pass.
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
+- **Step 8 runtime verification is JVM-only**: Robolectric + real Room prove the generation/backfill/skip/completion behavior; no on-device run. The `MainActivity` on-open trigger and Hilt injection are compile-verified but not device-exercised.
+- **Tab-entry / date-change generation trigger deferred to Step 9** (the Dailies tab is still a placeholder). The `MainActivity` on-open trigger already covers §9's "since last app open" backfill; a long-running app crossing midnight needs the Step 9 tab-entry check to generate the new day.
+- **Backfill is capped at 365 dates per call** (`MAX_CATCH_UP_DATES`, mirroring the habit engine's 400-cycle cap). A series with more than a year of missed days catches up over successive opens rather than in one pass. No occurrence is ever lost or duplicated.
 
 ## Recovery Notes
 - Working dir: `D:\Shadid\Pro_Pro`; SDK: `C:\Users\HP\AppData\Local\Android\Sdk` (platforms android-36.1, android-37.0; build-tools 36.0.0).
@@ -191,6 +190,7 @@
 - Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt` (NavHost slide constants: `NAV_TRANSITION_MS = 260`).
 - Habits UI: list in `ui/habits/HabitsScreen.kt`; editor in `ui/habits/HabitEditorScreen.kt` (borderless `InputCard` / `DropdownCard` / `DirectionToggle` helpers are private at the bottom of that file; canvas colour is `surfaceContainer`).
 - To-Do UI: list in `ui/todos/TodosScreen.kt`; editor in `ui/todos/TodoEditorScreen.kt` (same private input-card pattern, plus the inline `SubtaskEditorCard`); shared gray/strike + nullable date label in `ui/todos/TodoPresentation.kt`; date helpers in `ui/todos/TodoDates.kt`; routes `todos/new` and `todos/edit/{todoId}`. List order comes from `TodoDao` (`isCompleted ASC, sortOrder ASC`), and the screen only splits open vs Completed. Subtasks are queried per parent by `SubtaskDao` with `sortOrder ASC, id ASC` (completion never reorders them).
+- Daily generation (Step 8): pure engine in `data/daily/DailyOccurrenceEngine.kt` (epoch days; `datesToGenerate(daily, lastGeneratedDate, today)`), transactional/idempotent `DailyOccurrenceManager.kt` (inject in tests as `DailyOccurrenceManager(database)`), triggered on open in `MainActivity`. Skip wrappers are on `DailyRepository` (`skipOccurrence` / `unskipOccurrence`). Tests: `app/src/test/java/com/example/mnlists/data/daily/{DailyOccurrenceEngineTest,DailyOccurrenceManagerTest}.kt` (Robolectric tests need `.setQueryExecutor(DIRECT_EXECUTOR).setTransactionExecutor(DIRECT_EXECUTOR)` on the in-memory builder for synchronous assertions). No Room schema change — still v2.
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` and `2.json` (current DB version **2**, `MIGRATION_1_2` registered in `DatabaseModule`).
 - Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources), and `unitTests.all { maxHeapSize = "3g" }` is required because Robolectric's native text-layout registry exhausts the default 512 MB heap. Do not put text fields in dialogs in Robolectric tests (they never reach idle) — keep input in the main window. PowerShell may exit 1 on benign JVM/Espresso stderr warnings; trust the BUILD SUCCESSFUL line and the JUnit XMLs under `app/build/test-results/`.
