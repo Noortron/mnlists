@@ -193,6 +193,21 @@ class HabitsFeatureTest {
         assertTrue(repository.observeHabits().first().isEmpty())
     }
 
+    @Test
+    fun viewModelMove_reordersHabits_andPersistsSortOrder() = runBlocking {
+        val first = repository.createHabit(Habit(title = "First", sortOrder = 0.0))
+        val second = repository.createHabit(Habit(title = "Second", sortOrder = 1.0))
+        val third = repository.createHabit(Habit(title = "Third", sortOrder = 2.0))
+        val viewModel = HabitsViewModel(repository, resetManager)
+        assertEquals(3, viewModel.habits.first { it.isNotEmpty() }.size)
+
+        viewModel.moveHabit(first, third)
+
+        val ordered = repository.observeHabits().first()
+        assertEquals(listOf(second, third, first), ordered.map { it.id })
+        assertEquals(listOf(0.0, 1.0, 2.0), ordered.map { it.sortOrder })
+    }
+
     /** Proves persistence beyond the process: close the DB file and reopen it. */
     @Test
     fun habit_survivesDatabaseReopen() = runBlocking {

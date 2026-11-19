@@ -56,6 +56,7 @@
     <string name="habit_delete_confirm_body">This habit will be deleted. Its history is kept.</string>
     <string name="habit_increase">Increase %1$s</string>
     <string name="habit_decrease">Decrease %1$s</string>
+    <string name="habit_reorder">Reorder %1$s</string>
 
     <!-- To-Do's (SPEC §4.2) -->
     <string name="todo_new_title">New to-do</string>

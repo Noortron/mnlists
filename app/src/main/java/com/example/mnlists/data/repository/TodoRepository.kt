@@ -125,4 +125,14 @@ class TodoRepository @Inject constructor(
     }
 
     suspend fun nextSortOrder(): Double = todoDao.maxSortOrder() + 1.0
+
+    /** Persists a drag-reorder: the given ids become `0..n` in list order (Step 10). */
+    suspend fun reorderTodos(orderedIds: List<Long>) {
+        database.withTransaction {
+            val now = System.currentTimeMillis()
+            orderedIds.forEachIndexed { index, id ->
+                todoDao.updateSortOrder(id = id, sortOrder = index.toDouble(), updatedAt = now)
+            }
+        }
+    }
 }

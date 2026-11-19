@@ -51,4 +51,14 @@ class HabitRepository @Inject constructor(
     suspend fun getLogs(habitId: Long): List<HabitLog> = habitLogDao.getForHabit(habitId)
 
     suspend fun appendLog(log: HabitLog): Long = habitLogDao.insert(log)
+
+    suspend fun nextSortOrder(): Double = habitDao.maxSortOrder() + 1.0
+
+    /** Persists a drag-reorder: the given ids become `0..n` in list order (Step 10). */
+    suspend fun reorderHabits(orderedIds: List<Long>) {
+        val now = System.currentTimeMillis()
+        orderedIds.forEachIndexed { index, id ->
+            habitDao.updateSortOrder(id = id, sortOrder = index.toDouble(), updatedAt = now)
+        }
+    }
 }

@@ -115,6 +115,9 @@ class HabitsUiTest {
         // Tapping the title opens the edit page.
         compose.onNodeWithText("Read").performClick()
         assertEquals(1L, opened)
+
+        // Habits never collapse; the handle is present for long-press reordering.
+        compose.onNodeWithContentDescription("Reorder Read").assertIsDisplayed()
     }
 
     @Test

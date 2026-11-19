@@ -1,5 +1,6 @@
 package com.example.mnlists.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -34,4 +35,7 @@ data class Habit(
     val lastResetAt: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Manual order inside the list (Step 10); lower comes first. */
+    @ColumnInfo(defaultValue = "0")
+    val sortOrder: Double = 0.0,
 )

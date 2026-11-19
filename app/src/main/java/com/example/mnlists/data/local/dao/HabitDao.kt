@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface HabitDao {
 
-    @Query("SELECT * FROM habits ORDER BY createdAt ASC, id ASC")
+    @Query("SELECT * FROM habits ORDER BY sortOrder ASC, createdAt ASC, id ASC")
     fun observeAll(): Flow<List<Habit>>
 
     @Query("SELECT * FROM habits WHERE id = :id")
@@ -20,7 +20,7 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE id = :id")
     suspend fun getById(id: Long): Habit?
 
-    @Query("SELECT * FROM habits ORDER BY createdAt ASC, id ASC")
+    @Query("SELECT * FROM habits ORDER BY sortOrder ASC, createdAt ASC, id ASC")
     suspend fun getAll(): List<Habit>
 
     @Insert
@@ -37,6 +37,13 @@ interface HabitDao {
 
     @Query("UPDATE habits SET currentCount = :count, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateCount(id: Long, count: Int, updatedAt: Long)
+
+    /** Manual list order (Step 10); lower comes first. */
+    @Query("UPDATE habits SET sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, sortOrder: Double, updatedAt: Long)
+
+    @Query("SELECT COALESCE(MAX(sortOrder), 0.0) FROM habits")
+    suspend fun maxSortOrder(): Double
 
     /** Applies an auto-reset: zeroes the counter and moves the cycle start. */
     @Query(

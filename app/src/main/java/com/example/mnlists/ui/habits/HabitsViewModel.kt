@@ -41,4 +41,16 @@ class HabitsViewModel @Inject constructor(
     fun decrement(habitId: Long) {
         viewModelScope.launch { habitRepository.adjustCount(habitId, delta = -1) }
     }
+
+    /** Long-press drag reorder (Step 10); the new order is persisted immediately. */
+    fun moveHabit(fromId: Long, toId: Long) {
+        if (fromId == toId) return
+        val current = habits.value
+        val from = current.indexOfFirst { it.id == fromId }
+        val to = current.indexOfFirst { it.id == toId }
+        if (from < 0 || to < 0) return
+
+        val moved = current.toMutableList().apply { add(to, removeAt(from)) }
+        viewModelScope.launch { habitRepository.reorderHabits(moved.map { it.id }) }
+    }
 }

@@ -313,6 +313,37 @@ class TodoFeatureTest {
     }
 
     @Test
+    fun viewModelMove_reordersOpenSectionOnly_andPersistsSortOrder() = runBlocking {
+        val first = createTodo("First", 0.0)
+        val second = createTodo("Second", 1.0)
+        val third = createTodo("Third", 2.0)
+        val done = repository.createTodo(
+            Todo(
+                title = "Done",
+                dueDate = TodoDates.today(),
+                sortOrder = 3.0,
+                isCompleted = true,
+            ),
+        )
+        val viewModel = TodosViewModel(repository)
+        assertEquals(4, viewModel.todos.first { it.isNotEmpty() }.size)
+
+        viewModel.moveTodo(first, third)
+
+        assertEquals(
+            listOf(second, third, first, done),
+            repository.observeTodos().first().map { it.id },
+        )
+
+        // Completed rows keep their own section: cross-section moves are ignored.
+        viewModel.moveTodo(done, second)
+        assertEquals(
+            listOf(second, third, first, done),
+            repository.observeTodos().first().map { it.id },
+        )
+    }
+
+    @Test
     fun datePickerConversions_roundTripAnEpochDay() {
         val day = TodoDates.today()
         assertEquals(day, TodoDates.fromUtcMillis(TodoDates.toUtcMillis(day)))

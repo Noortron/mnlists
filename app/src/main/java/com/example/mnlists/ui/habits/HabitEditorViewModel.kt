@@ -151,6 +151,7 @@ class HabitEditorViewModel @Inject constructor(
                             lastResetAt = now,
                             createdAt = now,
                             updatedAt = now,
+                            sortOrder = habitRepository.nextSortOrder(),
                         ),
                     ),
                 )

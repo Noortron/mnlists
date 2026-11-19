@@ -182,6 +182,26 @@ class DailyFeatureTest {
     }
 
     @Test
+    fun moveOccurrence_reordersTheDayAndPersistsSortOrder() = runBlocking {
+        val firstSeries = createDaily("First")
+        val secondSeries = createDaily("Second")
+        val thirdSeries = createDaily("Third")
+        val first = repository.ensureOccurrence(firstSeries, day, sortOrder = 0.0)!!.id
+        val second = repository.ensureOccurrence(secondSeries, day, sortOrder = 1.0)!!.id
+        val third = repository.ensureOccurrence(thirdSeries, day, sortOrder = 2.0)!!.id
+
+        val viewModel = DailiesViewModel(repository, manager)
+        viewModel.setToday(day)
+        assertEquals(3, viewModel.entries.first { it.isNotEmpty() }.size)
+
+        viewModel.moveOccurrence(first, third)
+
+        val ordered = repository.getOccurrencesForDate(day)
+        assertEquals(listOf(second, third, first), ordered.map { it.id })
+        assertEquals(listOf(0.0, 1.0, 2.0), ordered.map { it.sortOrder })
+    }
+
+    @Test
     fun skip_isPerOccurrence_andCanBeUndone() = runBlocking {
         val dailyId = createDaily("Morning pages")
         manager.generateDueOccurrences(today = day)

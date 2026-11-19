@@ -34,7 +34,7 @@ import com.example.mnlists.data.local.entity.Todo
         Subtask::class,
         Reminder::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -88,6 +88,17 @@ abstract class MnlistsDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_isCompleted` ON `todos` (`isCompleted`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_dueDate` ON `todos` (`dueDate`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_sortOrder` ON `todos` (`sortOrder`)")
+            }
+        }
+
+        /**
+         * v3 adds manual list order to habits (Step 10). Existing rows keep
+         * their old creation order because every row gets the same `0` value
+         * and the DAO falls back to `createdAt`.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `habits` ADD COLUMN `sortOrder` REAL NOT NULL DEFAULT 0")
             }
         }
     }

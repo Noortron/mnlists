@@ -154,6 +154,35 @@ class DailiesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Long-press drag reorder (Step 10). Rows only move inside their own
+     * open/Skipped/Completed section; the combined list order is persisted.
+     */
+    fun moveOccurrence(fromId: Long, toId: Long) {
+        if (fromId == toId) return
+        val current = entries.value
+        val open = current.filter { it.statusRank() == 0 }
+        val skipped = current.filter { it.statusRank() == 1 }
+        val completed = current.filter { it.statusRank() == 2 }
+        val section = when {
+            open.any { it.occurrence.id == fromId } -> open
+            skipped.any { it.occurrence.id == fromId } -> skipped
+            completed.any { it.occurrence.id == fromId } -> completed
+            else -> return
+        }
+        val from = section.indexOfFirst { it.occurrence.id == fromId }
+        val to = section.indexOfFirst { it.occurrence.id == toId }
+        if (from < 0 || to < 0) return
+
+        val moved = section.toMutableList().apply { add(to, removeAt(from)) }
+        val ordered = when (section) {
+            open -> moved + skipped + completed
+            skipped -> open + moved + completed
+            else -> open + skipped + moved
+        }.map { it.occurrence.id }
+        viewModelScope.launch { repository.reorderOccurrences(ordered) }
+    }
+
     /** Re-reads children directly so callers do not depend on Flow collection. */
     private suspend fun refreshSubtasks() {
         _subtasks.value = repository.getOccurrencesForDate(_today.value)

@@ -29,7 +29,7 @@ object DatabaseModule {
             MnlistsDatabase::class.java,
             MnlistsDatabase.DATABASE_NAME,
         )
-            .addMigrations(MnlistsDatabase.MIGRATION_1_2)
+            .addMigrations(MnlistsDatabase.MIGRATION_1_2, MnlistsDatabase.MIGRATION_2_3)
             .build()
 
     @Provides

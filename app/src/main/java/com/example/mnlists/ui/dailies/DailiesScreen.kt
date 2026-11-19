@@ -13,12 +13,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +40,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mnlists.R
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.ui.components.PlaceholderContent
+import com.example.mnlists.ui.components.ReorderHandle
+import com.example.mnlists.ui.components.rememberReorderDragState
+import com.example.mnlists.ui.components.reorderHandle
+import com.example.mnlists.ui.components.reorderItem
 
 /** Stateful entry point for the Dailies tab. */
 @Composable
@@ -74,6 +76,7 @@ fun DailiesRoute(
             viewModel.updateSubtask(subtaskId, title, note, deadline) {}
         },
         onDeleteSubtask = viewModel::deleteSubtask,
+        onReorder = viewModel::moveOccurrence,
     )
 }
 
@@ -95,6 +98,7 @@ fun DailiesScreen(
     onAddSubtask: (Long, String, String, Long?) -> Unit,
     onUpdateSubtask: (Long, Long, String, String, Long?) -> Unit,
     onDeleteSubtask: (Long) -> Unit,
+    onReorder: (fromId: Long, toId: Long) -> Unit = { _, _ -> },
 ) {
     if (entries.isEmpty()) {
         PlaceholderContent(
@@ -108,11 +112,18 @@ fun DailiesScreen(
     val open = entries.filter { !it.occurrence.isCompleted && !it.occurrence.isSkipped }
     val skipped = entries.filter { it.occurrence.isSkipped && !it.occurrence.isCompleted }
     val completed = entries.filter { it.occurrence.isCompleted }
+    val openIds = remember(open) { open.map { it.occurrence.id } }
+    val skippedIds = remember(skipped) { skipped.map { it.occurrence.id } }
+    val completedIds = remember(completed) { completed.map { it.occurrence.id } }
+
+    val listState = rememberLazyListState()
+    val dragState = rememberReorderDragState(listState)
 
     // Subtask details are expanded by default (SPEC §4.2 row behaviour).
     var collapsedIds by remember { mutableStateOf(setOf<Long>()) }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -143,7 +154,25 @@ fun DailiesScreen(
                         onUpdateSubtask(entry.occurrence.id, subtaskId, title, note, deadline)
                     },
                     onDeleteSubtask = onDeleteSubtask,
-                    modifier = Modifier.animateItem(),
+                    dragModifier = Modifier.reorderHandle(
+                        state = dragState,
+                        key = entry.occurrence.id,
+                        sectionKeys = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        },
+                    ) { from, to ->
+                        val ids = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        }
+                        onReorder(ids[from], ids[to])
+                    },
+                    modifier = Modifier
+                        .animateItem()
+                        .reorderItem(dragState, entry.occurrence.id),
                 )
             }
         }
@@ -176,7 +205,25 @@ fun DailiesScreen(
                         onUpdateSubtask(entry.occurrence.id, subtaskId, title, note, deadline)
                     },
                     onDeleteSubtask = onDeleteSubtask,
-                    modifier = Modifier.animateItem(),
+                    dragModifier = Modifier.reorderHandle(
+                        state = dragState,
+                        key = entry.occurrence.id,
+                        sectionKeys = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        },
+                    ) { from, to ->
+                        val ids = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        }
+                        onReorder(ids[from], ids[to])
+                    },
+                    modifier = Modifier
+                        .animateItem()
+                        .reorderItem(dragState, entry.occurrence.id),
                 )
             }
         }
@@ -209,7 +256,25 @@ fun DailiesScreen(
                         onUpdateSubtask(entry.occurrence.id, subtaskId, title, note, deadline)
                     },
                     onDeleteSubtask = onDeleteSubtask,
-                    modifier = Modifier.animateItem(),
+                    dragModifier = Modifier.reorderHandle(
+                        state = dragState,
+                        key = entry.occurrence.id,
+                        sectionKeys = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        },
+                    ) { from, to ->
+                        val ids = when {
+                            entry.occurrence.isCompleted -> completedIds
+                            entry.occurrence.isSkipped -> skippedIds
+                            else -> openIds
+                        }
+                        onReorder(ids[from], ids[to])
+                    },
+                    modifier = Modifier
+                        .animateItem()
+                        .reorderItem(dragState, entry.occurrence.id),
                 )
             }
         }
@@ -246,6 +311,7 @@ private fun DailyRow(
     onAddSubtask: (String, String, Long?) -> Unit,
     onUpdateSubtask: (Long, String, String, Long?) -> Unit,
     onDeleteSubtask: (Long) -> Unit,
+    dragModifier: Modifier,
     modifier: Modifier = Modifier,
 ) {
     val occurrence = entry.occurrence
@@ -312,16 +378,11 @@ private fun DailyRow(
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
-                IconButton(
-                    onClick = onToggleCollapsed,
-                    modifier = Modifier.semantics { contentDescription = toggleDescription },
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.DragHandle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ReorderHandle(
+                    description = toggleDescription,
+                    onTap = onToggleCollapsed,
+                    modifier = dragModifier,
+                )
             }
 
             Row(

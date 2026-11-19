@@ -163,6 +163,15 @@ class DailyRepository @Inject constructor(
         }
     }
 
+    /** Persists a drag-reorder of one day's rows: the given ids become `0..n` (Step 10). */
+    suspend fun reorderOccurrences(orderedIds: List<Long>) {
+        database.withTransaction {
+            orderedIds.forEachIndexed { index, id ->
+                occurrenceDao.updateSortOrder(id = id, sortOrder = index.toDouble())
+            }
+        }
+    }
+
     /** Re-reads the children after any of them changed and re-evaluates the parent. */
     private suspend fun syncOccurrenceCompletion(occurrenceId: Long) {
         val total = subtaskDao.countForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)

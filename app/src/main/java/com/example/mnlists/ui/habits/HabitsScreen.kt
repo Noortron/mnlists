@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,6 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mnlists.R
 import com.example.mnlists.data.local.entity.Habit
 import com.example.mnlists.ui.components.PlaceholderContent
+import com.example.mnlists.ui.components.ReorderHandle
+import com.example.mnlists.ui.components.rememberReorderDragState
+import com.example.mnlists.ui.components.reorderHandle
+import com.example.mnlists.ui.components.reorderItem
 
 /** Stateful entry point for the Habits tab. */
 @Composable
@@ -53,12 +59,14 @@ fun HabitsRoute(
         onOpenHabit = onOpenHabit,
         onIncrement = viewModel::increment,
         onDecrement = viewModel::decrement,
+        onReorder = viewModel::moveHabit,
     )
 }
 
 /**
  * Habits list (SPEC §4.1). Rows never collapse: the truncated note preview is
- * always visible, and only the enabled directions show a −/+ button.
+ * always visible, and only the enabled directions show a −/+ button. The drag
+ * handle long-presses into a reorder drag; a tap is intentionally inert.
  */
 @Composable
 fun HabitsScreen(
@@ -66,6 +74,7 @@ fun HabitsScreen(
     onOpenHabit: (Long) -> Unit,
     onIncrement: (Long) -> Unit,
     onDecrement: (Long) -> Unit,
+    onReorder: (fromId: Long, toId: Long) -> Unit = { _, _ -> },
 ) {
     if (habits.isEmpty()) {
         PlaceholderContent(
@@ -76,7 +85,12 @@ fun HabitsScreen(
         return
     }
 
+    val listState = rememberLazyListState()
+    val dragState = rememberReorderDragState(listState)
+    val habitIds = remember(habits) { habits.map { it.id } }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -87,6 +101,12 @@ fun HabitsScreen(
                 onOpen = { onOpenHabit(habit.id) },
                 onIncrement = { onIncrement(habit.id) },
                 onDecrement = { onDecrement(habit.id) },
+                dragModifier = Modifier.reorderHandle(
+                    state = dragState,
+                    key = habit.id,
+                    sectionKeys = habitIds,
+                ) { from, to -> onReorder(habitIds[from], habitIds[to]) },
+                modifier = Modifier.reorderItem(dragState, habit.id),
             )
         }
     }
@@ -98,9 +118,11 @@ private fun HabitRow(
     onOpen: () -> Unit,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    dragModifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -160,6 +182,11 @@ private fun HabitRow(
                     )
                 }
             }
+
+            ReorderHandle(
+                description = stringResource(R.string.habit_reorder, habit.title),
+                modifier = dragModifier,
+            )
         }
     }
 }

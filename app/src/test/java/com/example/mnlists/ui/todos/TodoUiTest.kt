@@ -138,6 +138,39 @@ class TodoUiTest {
         assertEquals(2L to false, toggled)
         compose.onNodeWithText("Buy milk").performClick()
         assertEquals(1L, opened)
+
+        // The drag handle doubles as the collapse toggle (Step 10).
+        compose.onNodeWithContentDescription("Collapse Buy milk").assertIsDisplayed()
+    }
+
+    @Test
+    fun list_dragHandleCollapsesSubtasks() {
+        val todo = Todo(id = 1L, title = "Plan trip", dueDate = TodoDates.today(), sortOrder = 0.0)
+        val subtask = Subtask(
+            id = 10L,
+            parentType = ParentType.TODO,
+            parentId = todo.id,
+            title = "Book flights",
+            sortOrder = 0.0,
+        )
+
+        compose.setContent {
+            MaterialTheme {
+                TodosScreen(
+                    todos = listOf(todo),
+                    subtasksByTodo = mapOf(todo.id to listOf(subtask)),
+                    onOpenTodo = {},
+                    onToggleCompleted = { _, _ -> },
+                )
+            }
+        }
+
+        // Expanded by default, then the same handle collapses and re-expands.
+        compose.onNodeWithText("Book flights").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Collapse Plan trip").performClick()
+        compose.onAllNodesWithText("Book flights").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Expand Plan trip").performClick()
+        compose.onNodeWithText("Book flights").assertIsDisplayed()
     }
 
     @Test
