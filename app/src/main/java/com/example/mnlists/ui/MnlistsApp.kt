@@ -47,13 +47,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mnlists.R
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.ui.dailies.DailiesRoute
+import com.example.mnlists.ui.dailies.DailyEditorScreen
 import com.example.mnlists.ui.habits.HabitEditorScreen
 import com.example.mnlists.ui.habits.HabitsRoute
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import com.example.mnlists.ui.navigation.TopLevelDestination
 import com.example.mnlists.ui.screens.AboutScreen
 import com.example.mnlists.ui.screens.CalendarScreen
-import com.example.mnlists.ui.screens.DailiesScreen
 import com.example.mnlists.ui.screens.SettingsScreen
 import com.example.mnlists.ui.todos.TodoEditorScreen
 import com.example.mnlists.ui.todos.TodosRoute
@@ -79,7 +80,10 @@ fun MnlistsApp(
         currentRoute == MnlistsRoutes.HABIT_EDITOR
     val isTodoEditor = currentRoute == MnlistsRoutes.TODO_NEW ||
         currentRoute == MnlistsRoutes.TODO_EDITOR
-    val isEditor = isHabitEditor || isTodoEditor
+    val isDailyEditor = currentRoute == MnlistsRoutes.DAILY_NEW ||
+        currentRoute == MnlistsRoutes.DAILY_EDITOR ||
+        currentRoute == MnlistsRoutes.DAILY_OCCURRENCE_EDITOR
+    val isEditor = isHabitEditor || isTodoEditor || isDailyEditor
 
     // Keep the bar visible during its exit animation (route becomes null first).
     var lastTopLevel by remember { mutableStateOf<TopLevelDestination?>(null) }
@@ -95,6 +99,10 @@ fun MnlistsApp(
         currentRoute == MnlistsRoutes.HABIT_EDITOR -> stringResource(R.string.habit_edit_title)
         currentRoute == MnlistsRoutes.TODO_NEW -> stringResource(R.string.todo_new_title)
         currentRoute == MnlistsRoutes.TODO_EDITOR -> stringResource(R.string.todo_edit_title)
+        currentRoute == MnlistsRoutes.DAILY_NEW -> stringResource(R.string.daily_new_title)
+        currentRoute == MnlistsRoutes.DAILY_EDITOR -> stringResource(R.string.daily_edit_title)
+        currentRoute == MnlistsRoutes.DAILY_OCCURRENCE_EDITOR ->
+            stringResource(R.string.daily_occurrence_title)
         currentRoute == MnlistsRoutes.SETTINGS -> stringResource(R.string.menu_settings)
         currentRoute == MnlistsRoutes.ABOUT -> stringResource(R.string.menu_about)
         else -> stringResource(R.string.app_name)
@@ -138,7 +146,8 @@ fun MnlistsApp(
                                 navController.navigate(MnlistsRoutes.HABIT_NEW)
                             TopLevelDestination.TODOS ->
                                 navController.navigate(MnlistsRoutes.TODO_NEW)
-                            // The Dailies create flow arrives in Step 9.
+                            TopLevelDestination.DAILIES ->
+                                navController.navigate(MnlistsRoutes.DAILY_NEW)
                             else -> Unit
                         }
                     },
@@ -183,7 +192,35 @@ fun MnlistsApp(
             ) {
                 HabitEditorScreen(onDone = { navController.popBackStack() })
             }
-            composable(MnlistsRoutes.DAILIES) { DailiesScreen() }
+            composable(MnlistsRoutes.DAILIES) {
+                DailiesRoute(
+                    onOpenSeries = { dailyId ->
+                        navController.navigate(MnlistsRoutes.dailyEditorRoute(dailyId))
+                    },
+                    onOpenOccurrence = { occurrenceId ->
+                        navController.navigate(MnlistsRoutes.dailyOccurrenceEditorRoute(occurrenceId))
+                    },
+                )
+            }
+            composable(MnlistsRoutes.DAILY_NEW) {
+                DailyEditorScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                route = MnlistsRoutes.DAILY_EDITOR,
+                arguments = listOf(
+                    navArgument(MnlistsRoutes.DAILY_ID_ARG) { type = NavType.LongType },
+                ),
+            ) {
+                DailyEditorScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                route = MnlistsRoutes.DAILY_OCCURRENCE_EDITOR,
+                arguments = listOf(
+                    navArgument(MnlistsRoutes.DAILY_OCCURRENCE_ID_ARG) { type = NavType.LongType },
+                ),
+            ) {
+                DailyEditorScreen(onDone = { navController.popBackStack() })
+            }
             composable(MnlistsRoutes.TODOS) {
                 TodosRoute(
                     onOpenTodo = { todoId ->

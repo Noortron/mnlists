@@ -27,6 +27,9 @@ interface DailyOccurrenceDao {
     @Query("SELECT * FROM daily_occurrences WHERE dailyId = :dailyId AND date = :date")
     suspend fun getForDailyAndDate(dailyId: Long, date: Long): DailyOccurrence?
 
+    @Query("SELECT * FROM daily_occurrences WHERE id = :id")
+    suspend fun getById(id: Long): DailyOccurrence?
+
     @Query("SELECT * FROM daily_occurrences WHERE dailyId = :dailyId ORDER BY date DESC")
     fun observeForDaily(dailyId: Long): Flow<List<DailyOccurrence>>
 

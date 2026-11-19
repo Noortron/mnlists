@@ -93,6 +93,16 @@ class DailyRepository @Inject constructor(
         }
     }
 
+    suspend fun getOccurrence(occurrenceId: Long): DailyOccurrence? = occurrenceDao.getById(occurrenceId)
+
+    /** Deletes one occurrence and its subtasks; never touches the series or siblings. */
+    suspend fun deleteOccurrence(occurrenceId: Long) {
+        database.withTransaction {
+            subtaskDao.deleteForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)
+            occurrenceDao.deleteById(occurrenceId)
+        }
+    }
+
     /** Skip affects this occurrence only; the series stays untouched. */
     suspend fun setOccurrenceSkipped(occurrenceId: Long, skipped: Boolean) =
         occurrenceDao.setSkipped(occurrenceId, skipped)
@@ -109,6 +119,9 @@ class DailyRepository @Inject constructor(
     suspend fun getSubtasks(occurrenceId: Long): List<Subtask> =
         subtaskDao.getForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)
 
+    suspend fun getSubtask(subtaskId: Long): Subtask? = subtaskDao.getById(subtaskId)
+
+    /** Adding an open child to a completed occurrence reopens it (SPEC §8). */
     suspend fun addSubtask(subtask: Subtask): Long {
         val ordered = if (subtask.sortOrder > 0.0) {
             subtask
@@ -117,28 +130,48 @@ class DailyRepository @Inject constructor(
                 sortOrder = subtaskDao.maxSortOrder(ParentType.DAILY_OCCURRENCE, subtask.parentId) + 1.0,
             )
         }
-        return subtaskDao.insert(ordered)
+        return database.withTransaction {
+            val id = subtaskDao.insert(ordered)
+            if (subtask.parentType == ParentType.DAILY_OCCURRENCE) {
+                syncOccurrenceCompletion(subtask.parentId)
+            }
+            id
+        }
     }
 
     suspend fun updateSubtask(subtask: Subtask) = subtaskDao.update(subtask)
 
-    suspend fun deleteSubtask(subtaskId: Long) = subtaskDao.deleteById(subtaskId)
+    /** Deleting the last open child can complete the occurrence (SPEC §8). */
+    suspend fun deleteSubtask(subtaskId: Long) {
+        database.withTransaction {
+            val subtask = subtaskDao.getById(subtaskId) ?: return@withTransaction
+            subtaskDao.deleteById(subtaskId)
+            if (subtask.parentType == ParentType.DAILY_OCCURRENCE) {
+                syncOccurrenceCompletion(subtask.parentId)
+            }
+        }
+    }
 
     /** All subtasks checked → occurrence checked; unchecking one → unchecked. */
     suspend fun setSubtaskCompleted(subtaskId: Long, completed: Boolean) {
         database.withTransaction {
             val subtask = subtaskDao.getById(subtaskId) ?: return@withTransaction
             subtaskDao.setCompleted(subtaskId, completed)
-            if (subtask.parentType != ParentType.DAILY_OCCURRENCE) return@withTransaction
-
-            val total = subtaskDao.countForParent(ParentType.DAILY_OCCURRENCE, subtask.parentId)
-            val remaining = subtaskDao.countIncompleteForParent(ParentType.DAILY_OCCURRENCE, subtask.parentId)
-            val allDone = total > 0 && remaining == 0
-            occurrenceDao.setCompleted(
-                id = subtask.parentId,
-                completed = allDone,
-                completedAt = if (allDone) System.currentTimeMillis() else null,
-            )
+            if (subtask.parentType == ParentType.DAILY_OCCURRENCE) {
+                syncOccurrenceCompletion(subtask.parentId)
+            }
         }
+    }
+
+    /** Re-reads the children after any of them changed and re-evaluates the parent. */
+    private suspend fun syncOccurrenceCompletion(occurrenceId: Long) {
+        val total = subtaskDao.countForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)
+        val remaining = subtaskDao.countIncompleteForParent(ParentType.DAILY_OCCURRENCE, occurrenceId)
+        val allDone = total > 0 && remaining == 0
+        occurrenceDao.setCompleted(
+            id = occurrenceId,
+            completed = allDone,
+            completedAt = if (allDone) System.currentTimeMillis() else null,
+        )
     }
 }

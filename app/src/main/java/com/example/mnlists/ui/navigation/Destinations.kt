@@ -35,6 +35,24 @@ object MnlistsRoutes {
     const val TODO_ID_ARG = "todoId"
 
     fun todoEditorRoute(todoId: Long): String = "todos/edit/$todoId"
+
+    /** Daily series create page (FAB). */
+    const val DAILY_NEW = "dailies/new"
+
+    /** Whole-series editor opened from the Dailies list (SPEC §9). */
+    const val DAILY_EDITOR = "dailies/edit/{dailyId}"
+    const val DAILY_ID_ARG = "dailyId"
+
+    /**
+     * Occurrence-only editor (SPEC §9). Step 12's Calendar day list opens this
+     * route; the Dailies list also exposes it via "Edit this day".
+     */
+    const val DAILY_OCCURRENCE_EDITOR = "dailies/occurrence/{occurrenceId}"
+    const val DAILY_OCCURRENCE_ID_ARG = "occurrenceId"
+
+    fun dailyEditorRoute(dailyId: Long): String = "dailies/edit/$dailyId"
+
+    fun dailyOccurrenceEditorRoute(occurrenceId: Long): String = "dailies/occurrence/$occurrenceId"
 }
 
 /** The four bottom-bar destinations, in display order. */
