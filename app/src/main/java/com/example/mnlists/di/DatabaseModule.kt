@@ -28,7 +28,9 @@ object DatabaseModule {
             context,
             MnlistsDatabase::class.java,
             MnlistsDatabase.DATABASE_NAME,
-        ).build()
+        )
+            .addMigrations(MnlistsDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideHabitDao(database: MnlistsDatabase): HabitDao = database.habitDao()

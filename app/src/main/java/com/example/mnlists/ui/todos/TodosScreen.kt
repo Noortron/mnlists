@@ -24,9 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -125,7 +122,6 @@ private fun TodoRow(
     onToggleCompleted: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val today = TodoDates.today()
     val completed = todo.isCompleted
     val titleText = todo.title.decorated(completed)
     val checkboxDescription = stringResource(
@@ -178,9 +174,8 @@ private fun TodoRow(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                DueLabel(
+                TodoDateLabel(
                     dueDate = todo.dueDate,
-                    today = today,
                     completed = completed,
                     modifier = Modifier.padding(top = 3.dp),
                 )
@@ -188,44 +183,3 @@ private fun TodoRow(
         }
     }
 }
-
-@Composable
-private fun DueLabel(
-    dueDate: Long,
-    today: Long,
-    completed: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val text = when {
-        dueDate < today -> stringResource(R.string.todo_overdue_on, TodoDates.format(dueDate))
-        dueDate == today -> stringResource(R.string.todo_due_today_label)
-        dueDate == today + 1 -> stringResource(R.string.todo_due_tomorrow_label)
-        else -> stringResource(R.string.todo_due_on, TodoDates.format(dueDate))
-    }
-    val color = when {
-        completed -> MaterialTheme.colorScheme.onSurfaceVariant
-        dueDate < today -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = color,
-        modifier = modifier,
-    )
-}
-
-/**
- * Completed rows are gray + struck through (SPEC §4.6). Applying the decoration
- * as a span style keeps it visible to accessibility and test semantics, not just
- * to the rendered glyphs.
- */
-private fun String.decorated(completed: Boolean): AnnotatedString =
-    if (completed) {
-        AnnotatedString(
-            text = this,
-            spanStyle = SpanStyle(textDecoration = TextDecoration.LineThrough),
-        )
-    } else {
-        AnnotatedString(this)
-    }

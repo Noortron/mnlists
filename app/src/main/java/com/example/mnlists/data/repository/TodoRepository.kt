@@ -60,18 +60,40 @@ class TodoRepository @Inject constructor(
     suspend fun getSubtasks(todoId: Long): List<Subtask> =
         subtaskDao.getForParent(ParentType.TODO, todoId)
 
-    suspend fun addSubtask(subtask: Subtask): Long {
+    suspend fun getSubtask(subtaskId: Long): Subtask? = subtaskDao.getById(subtaskId)
+
+    /**
+     * Appends the subtask and, because a new open child means the parent can no
+     * longer be "all done", unchecks the parent (SPEC §8).
+     */
+    suspend fun addSubtask(subtask: Subtask): Long = database.withTransaction {
         val ordered = if (subtask.sortOrder > 0.0) {
             subtask
         } else {
             subtask.copy(sortOrder = subtaskDao.maxSortOrder(ParentType.TODO, subtask.parentId) + 1.0)
         }
-        return subtaskDao.insert(ordered)
+        val id = subtaskDao.insert(ordered)
+        if (ordered.parentType == ParentType.TODO && !ordered.isCompleted) {
+            todoDao.setCompleted(
+                id = ordered.parentId,
+                completed = false,
+                completedAt = null,
+                updatedAt = System.currentTimeMillis(),
+            )
+        }
+        id
     }
 
     suspend fun updateSubtask(subtask: Subtask) = subtaskDao.update(subtask)
 
-    suspend fun deleteSubtask(subtaskId: Long) = subtaskDao.deleteById(subtaskId)
+    /** Removing a child re-evaluates the parent: all remaining children done → checked. */
+    suspend fun deleteSubtask(subtaskId: Long) = database.withTransaction {
+        val subtask = subtaskDao.getById(subtaskId) ?: return@withTransaction
+        subtaskDao.deleteById(subtaskId)
+        if (subtask.parentType == ParentType.TODO) {
+            syncTodoCompletion(subtask.parentId)
+        }
+    }
 
     /**
      * Completing the last subtask checks the parent; unchecking any subtask
@@ -81,19 +103,25 @@ class TodoRepository @Inject constructor(
         database.withTransaction {
             val subtask = subtaskDao.getById(subtaskId) ?: return@withTransaction
             subtaskDao.setCompleted(subtaskId, completed)
-            if (subtask.parentType != ParentType.TODO) return@withTransaction
-
-            val total = subtaskDao.countForParent(ParentType.TODO, subtask.parentId)
-            val remaining = subtaskDao.countIncompleteForParent(ParentType.TODO, subtask.parentId)
-            val allDone = total > 0 && remaining == 0
-            val now = System.currentTimeMillis()
-            todoDao.setCompleted(
-                id = subtask.parentId,
-                completed = allDone,
-                completedAt = if (allDone) now else null,
-                updatedAt = now,
-            )
+            if (subtask.parentType == ParentType.TODO) {
+                syncTodoCompletion(subtask.parentId)
+            }
         }
+    }
+
+    /** Re-derives parent completion from its children; leaves childless todos alone. */
+    private suspend fun syncTodoCompletion(todoId: Long) {
+        val total = subtaskDao.countForParent(ParentType.TODO, todoId)
+        if (total == 0) return
+
+        val allDone = subtaskDao.countIncompleteForParent(ParentType.TODO, todoId) == 0
+        val now = System.currentTimeMillis()
+        todoDao.setCompleted(
+            id = todoId,
+            completed = allDone,
+            completedAt = if (allDone) now else null,
+            updatedAt = now,
+        )
     }
 
     suspend fun nextSortOrder(): Double = todoDao.maxSortOrder() + 1.0

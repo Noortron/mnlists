@@ -43,6 +43,11 @@ android {
         // Robolectric needs the merged manifest/resources: Compose UI tests
         // launch ComponentActivity declared by ui-test-manifest.
         unitTests.isIncludeAndroidResources = true
+        // Robolectric's native text-layout registry grows while the Compose
+        // screens are exercised; the default 512 MB worker runs out.
+        unitTests.all {
+            it.maxHeapSize = "3g"
+        }
     }
 }
 

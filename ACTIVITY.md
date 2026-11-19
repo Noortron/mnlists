@@ -1,9 +1,9 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 7
-- Last updated: 2026-11-19T13:39:58+06:00
-- Overall: 7/16 steps complete (plus a completed Habits UI improvement pass)
+- Current step: 8
+- Last updated: 2026-11-19T14:31:29+06:00
+- Overall: 8/16 steps complete (plus a completed Habits UI improvement pass)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -13,7 +13,7 @@
 - [x] Step 4: Habits: list + create/edit + counter
 - [x] Step 5: Habits: auto-reset + history
 - [x] Step 6: To-Do's: list + create/edit
-- [ ] Step 7: Subtasks (To-Do's)
+- [x] Step 7: Subtasks (To-Do's)
 - [ ] Step 8: Dailies: model + occurrence generation
 - [ ] Step 9: Dailies UI + subtasks + skip
 - [ ] Step 10: Reordering & drag handle everywhere
@@ -116,6 +116,37 @@
   - Deleted: `ui/screens/TodosScreen.kt` (placeholder)
 - Notes / decisions: Subtasks and reminders are intentionally absent from the editor until Steps 7 and 11; the delete dialog already warns that they are removed. Open rows keep the repository/DAO `sortOrder` rather than sorting by due date, so Step 10's manual reordering will not have to undo a list-side sort. The list/form helpers are duplicated from `HabitEditorScreen` (private composables) instead of being shared; a polish pass can unify them. No Room entity/DAO/schema change.
 
+### Task 1 — To-Do due dates are optional (user override of SPEC §9) — 2026-11-19T14:31:29+06:00
+- What was done:
+  - `data/local/entity/Todo.kt`: `dueDate: Long?` (nullable) instead of a non-null epoch day.
+  - `data/local/MnlistsDatabase.kt`: version **2** + `MIGRATION_1_2`. SQLite cannot drop a `NOT NULL` constraint in place, so the migration creates `todos_new` with a nullable `dueDate`, copies every row, drops/renames the table and recreates the three indexes (`isCompleted`, `dueDate`, `sortOrder`). Exported schema `2.json` confirms `"dueDate" INTEGER` (nullable).
+  - `di/DatabaseModule.kt`: `MIGRATION_1_2` attached to the `Room.databaseBuilder` chain (no destructive fallback).
+  - `ui/todos/TodoEditorViewModel.kt`: `dueDate: Long? = null`, no due-date error state, `setDueDate(Long?)` and a save path that writes `null`.
+  - `ui/todos/TodoEditorScreen.kt`: the date card shows "No deadline" when unset and is never in an error state; Today / Tomorrow / Next week / **Clear** chips set or clear the date.
+  - `ui/todos/TodosScreen.kt` + `ui/todos/TodoPresentation.kt`: an unplanned row renders **no date at all** and can never show the overdue colour; dated rows keep "Due today / Due tomorrow / Due <date> / Overdue · <date>".
+  - `res/values/strings.xml`: "No deadline", optional-date support text and "Clear".
+- **Verification:** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**, **45 tests, 0 failures, 0 errors, 0 skipped**. `:app:assembleDebug` → **BUILD SUCCESSFUL**.
+  - `TodoFeatureTest.editor_requiresOnlyTitle_thenCreatesTodoWithoutDueDate`: a blank title still refuses to save and stores nothing; a title alone saves with `dueDate == null`.
+  - `TodoFeatureTest.editor_canClearAnExistingDueDate`: an existing dated to-do is loaded, cleared and saved as `null`.
+  - `TodoUiTest.list_unplannedTodoShowsNoDate_andNeverLooksOverdue`: exactly one "Overdue" label (the dated row) and no "Due …" text for the unplanned row.
+  - `TodoUiTest.editor_savesWithoutDueDate_andClearingADateStaysEmpty`: the new form shows "No deadline", picking Today then Clear returns to it, and Save persists `null`.
+- Files touched: `data/local/entity/Todo.kt`, `data/local/MnlistsDatabase.kt`, `di/DatabaseModule.kt`, `ui/todos/TodoEditorViewModel.kt`, `ui/todos/TodoEditorScreen.kt`, `ui/todos/TodosScreen.kt`, `res/values/strings.xml`, `app/src/test/java/com/example/mnlists/ui/todos/TodoFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoUiTest.kt`; new `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/2.json`, new `ui/todos/TodoPresentation.kt`.
+- Notes / decisions: this deliberately overrides SPEC §9 ("To-Do due date mandatory") on the user's instruction; `SPEC.md` was **not** modified. The list keeps repository `sortOrder`; undated rows simply have nothing to render.
+
+### Step 7 — Subtasks (To-Do's) — 2026-11-19T14:31:29+06:00
+- What was done:
+  - `data/local/dao/SubtaskDao.kt`: parent queries order by `sortOrder ASC, id ASC` only, so a completed child **stays in place** rather than dropping to the bottom.
+  - `data/repository/TodoRepository.kt`: `getSubtask`, transactional `addSubtask` (appends `sortOrder`, then `syncTodoCompletion`) and `deleteSubtask` (deletes, then `syncTodoCompletion`), plus `syncTodoCompletion` which re-reads the children and flips the parent: all children done → parent done; an open child → parent open. `setCompleted` already cascaded parent → children from Step 6; `setSubtaskCompleted` now runs the same sync after a child changes.
+  - `ui/todos/TodoEditorViewModel.kt`: live `subtasks` list loaded with the to-do, `addSubtask` / `updateSubtask` / `deleteSubtask` / `setSubtaskCompleted` / `setParentCompleted`, and `ensureParent()` so adding the first child to a brand-new to-do commits the parent first (title/note/due date are saved, then the child is attached). Every mutation re-reads both children **and** the parent, because either side of the §8 cascade can change it.
+  - `ui/todos/TodoEditorScreen.kt`: subtask section under the date section — each row has a checkbox, title (tap to edit), note preview and its own deadline, a drag-handle icon that collapses/expands the details (expanded by default) and a delete icon with a confirmation dialog. Completed children are grayed and struck through **in place**. The add/edit form is an inline `SubtaskEditorCard` with title, note, None / Due today / Due tomorrow chips and a full date-picker, reusing the borderless input style; an empty title blocks the save. Edit mode also shows a parent **Done** checkbox so the cascade can be exercised from one page.
+  - `ui/todos/TodoPresentation.kt`: shared `decorated(completed)` (gray + `LineThrough`) and the nullable `TodoDateLabel`, used by both the list and the subtask rows.
+  - `res/values/strings.xml`: subtask section/row/editor strings (`Add subtask`, `New/Edit subtask`, `None`, `Due today`, `Due tomorrow`, collapse/expand and delete descriptions, `Done`).
+- **Verification:** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**, **45 tests, 0 failures, 0 errors, 0 skipped** (20 To-Do tests: `TodoFeatureTest` 10, `TodoUiTest` 10). `:app:assembleDebug` → **BUILD SUCCESSFUL**.
+  - `TodoFeatureTest` (real Room + ViewModel): two open children leave the parent open, checking the last one checks the parent and stamps `completedAt`, unchecking the parent clears every child, re-checking checks every child; adding an open child to a completed parent reopens it and deleting a done child re-evaluates the parent; the editor's parent toggle updates `uiState.isCompleted` and the child list in both directions; children can be added (trimmed title/note, own deadline), edited (rename + clear deadline) and deleted; adding the first child to a new to-do creates the parent with its title/note and no due date.
+  - `TodoUiTest` (real composables + Robolectric + Room): add a child with note and "Due tomorrow" → row shows all three and the form closes; edit renames it and clears the deadline; delete confirms and removes it; the drag handle collapses and re-expands the note/date; checking one of two children strikes it through, leaves the sibling unstruck and keeps it **above** the open row (real geometry assertion); all children done → the parent's "mark as not done" checkbox appears; unchecking the parent clears and un-strikes every child; checking the parent from the editor strikes and stores every child.
+- Files touched: `data/local/dao/SubtaskDao.kt`, `data/repository/TodoRepository.kt`, `ui/todos/TodoEditorViewModel.kt`, `ui/todos/TodoEditorScreen.kt`, `res/values/strings.xml`, `app/build.gradle.kts` (test heap), `app/src/test/java/com/example/mnlists/ui/todos/TodoFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoUiTest.kt`; new `ui/todos/TodoPresentation.kt`.
+- Notes / decisions: subtasks persist live (each add/edit/toggle hits Room immediately) rather than being staged until Save, which keeps the parent/child cascade transactional and the tests honest. The add/edit form is an **inline card, not a dialog**: a `TextField` inside a second window never settles under Robolectric (`AppNotIdleException` / infinite clock awaiter) even with `LocalCursorBlinkEnabled=false` and `BasicTextField`, so a dialog would have made the required Compose tests impossible. The subtask delete confirmation is still a plain `AlertDialog` because it has no text input. List-level subtask expansion and reordering stay with Step 10; only the editor rows collapse here.
+
 ## Improvements
 ### Habits UI + navigation polish — 2026-11-19T12:55:41+06:00 — complete
 - **Editor redesign:** the create/edit page now uses a slightly darker `surfaceContainer` canvas with borderless input cards (`surface`, no outlines or underlines) grouped under **Details / Scheduling / Counter** headers. The note stays the emphasised field (primary-coloured label, 4–8 line input).
@@ -128,7 +159,7 @@
 - **Data layer untouched:** no entity/DAO/repository/Room schema change; no Step 5 work was started.
 
 ## Next Up
-- Step 7: Subtasks (To-Do's) — add/edit/delete with note + deadline, §8 two-way parent/subtask cascade, in-place gray+strike, collapse/expand via drag handle (expanded by default).
+- Step 8: Dailies — model + occurrence generation.
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -142,6 +173,13 @@
 - **Monthly removed from the habit reset UI only** (per user request): `ResetSchedule.MONTHLY` still exists in the enum/DB and legacy rows still render a "Monthly" label, but the editor dropdown no longer offers it. No Room/schema change was made.
 - **Navigation flicker fix is compile-verified, not visually verified**: the NavHost slide + animated bottom bar cannot be judged on the JVM; a device smoke test is needed. A start was made on 2026-11-19 (APK installed/launched, Habits list confirmed), but the device was actively in use so the editor/transition capture was not completed.
 - **Step 6 runtime verification is JVM-only**: no on-device run happened. The connected phone was in active use (LibChecker in the foreground) and was not touched. FAB → create navigation, the real date-picker dialog, keyboard input and dark-palette list rendering are compile-verified and covered by the Robolectric Compose tests, but not exercised end-to-end on a device.
+- **To-Do due date is now optional — a deliberate user override of SPEC §9/§4.2.** SPEC says the due date is mandatory; the user asked for nullable dates, so `Todo.dueDate` accepts `null`, validation was removed and the list renders no date (and never overdue) for unplanned rows. `SPEC.md` itself was left untouched.
+- **Room v1 → v2 migration is schema-verified, not runtime-verified.** SQLite cannot drop `NOT NULL`, so `MIGRATION_1_2` recreates `todos` and recreates its indexes. The exported `2.json` and the generated SQL were inspected by hand; `room-testing` is not on the test classpath and no device was available, so an actual open-and-upgrade of a v1 database has not run. Add a migration test when test tooling is next touched.
+- **Step 7 runtime verification is JVM-only**: no on-device run. The subtask rows, inline editor, collapse/expand and both cascade directions are covered by Robolectric Compose tests plus real-Room ViewModel tests, but the physical device was in active use and was not touched.
+- **Subtask add/edit is an inline card rather than a dialog.** A `TextField` inside an `AlertDialog` (a second window) never settles under Robolectric — `AppNotIdleException` even with `LocalCursorBlinkEnabled=false`, `BasicTextField` and focus disabled — which would have made the required Compose tests unrunnable. Functionality is unchanged; only the presentation differs from a dialog. The text-free delete confirmation stays a dialog.
+- **Parent "Done" checkbox added to the To-Do editor** (not in SPEC): without it the parent → children cascade could only be triggered from the list, making a single-screen UI test impossible. It reuses the repository cascade, so behaviour matches the list checkbox.
+- **Minor UX quirk:** when a brand-new To-Do gets its first subtask, the parent is auto-created and the editor switches to edit mode, but the nav title still reads "New to-do". Cosmetic; fix with the Step 14 polish pass.
+- **List-level subtask expansion/reorder is deferred to Step 10** (as planned); Step 7 implements expansion/collapse only for rows inside the editor.
 - Test-only deprecation warning: `createComposeRule()` suggests the v2 rule (StandardTestDispatcher). The current rule matches the existing Habits UI tests and passes; migration can wait for the polish pass.
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
 
@@ -152,8 +190,8 @@
 - Stack: Gradle 9.6.0, AGP 9.5.1, built-in Kotlin (KGP 2.2.10), KSP 2.3.14, Compose BOM 2026.09.00, Navigation-Compose 2.10.2, Hilt 2.60.1, Lifecycle 2.11.0, Activity-Compose 1.13.0, DataStore Preferences 1.3.0, SDK 37, minSdk 26, namespace `com.example.mnlists`.
 - Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt` (NavHost slide constants: `NAV_TRANSITION_MS = 260`).
 - Habits UI: list in `ui/habits/HabitsScreen.kt`; editor in `ui/habits/HabitEditorScreen.kt` (borderless `InputCard` / `DropdownCard` / `DirectionToggle` helpers are private at the bottom of that file; canvas colour is `surfaceContainer`).
-- To-Do UI: list in `ui/todos/TodosScreen.kt`; editor in `ui/todos/TodoEditorScreen.kt` (same private input-card pattern); date helpers in `ui/todos/TodoDates.kt`; routes `todos/new` and `todos/edit/{todoId}`. List order comes from `TodoDao` (`isCompleted ASC, sortOrder ASC`), and the screen only splits open vs Completed.
+- To-Do UI: list in `ui/todos/TodosScreen.kt`; editor in `ui/todos/TodoEditorScreen.kt` (same private input-card pattern, plus the inline `SubtaskEditorCard`); shared gray/strike + nullable date label in `ui/todos/TodoPresentation.kt`; date helpers in `ui/todos/TodoDates.kt`; routes `todos/new` and `todos/edit/{todoId}`. List order comes from `TodoDao` (`isCompleted ASC, sortOrder ASC`), and the screen only splits open vs Completed. Subtasks are queried per parent by `SubtaskDao` with `sortOrder ASC, id ASC` (completion never reorders them).
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
-- Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` (version 1).
-- Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources).
+- Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` and `2.json` (current DB version **2**, `MIGRATION_1_2` registered in `DatabaseModule`).
+- Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources), and `unitTests.all { maxHeapSize = "3g" }` is required because Robolectric's native text-layout registry exhausts the default 512 MB heap. Do not put text fields in dialogs in Robolectric tests (they never reach idle) — keep input in the main window. PowerShell may exit 1 on benign JVM/Espresso stderr warnings; trust the BUILD SUCCESSFUL line and the JUnit XMLs under `app/build/test-results/`.
 - Debug build manifest includes `androidx.compose.ui.tooling.PreviewActivity` (debug-only, expected).

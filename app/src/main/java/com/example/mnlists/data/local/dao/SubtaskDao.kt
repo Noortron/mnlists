@@ -12,15 +12,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SubtaskDao {
 
+    /** Manual order only: completed subtasks stay in place (SPEC §4.2). */
     @Query(
         "SELECT * FROM subtasks WHERE parentType = :parentType AND parentId = :parentId " +
-            "ORDER BY isCompleted ASC, sortOrder ASC, id ASC",
+            "ORDER BY sortOrder ASC, id ASC",
     )
     fun observeForParent(parentType: ParentType, parentId: Long): Flow<List<Subtask>>
 
     @Query(
         "SELECT * FROM subtasks WHERE parentType = :parentType AND parentId = :parentId " +
-            "ORDER BY isCompleted ASC, sortOrder ASC, id ASC",
+            "ORDER BY sortOrder ASC, id ASC",
     )
     suspend fun getForParent(parentType: ParentType, parentId: Long): List<Subtask>
 

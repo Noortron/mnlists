@@ -70,27 +70,17 @@ class TodoFeatureTest {
     }
 
     @Test
-    fun editor_requiresTitleAndDueDate_thenCreatesTodo() = runBlocking {
+    fun editor_requiresOnlyTitle_thenCreatesTodoWithoutDueDate() = runBlocking {
         val viewModel = TodoEditorViewModel(repository, SavedStateHandle())
         var saved = false
 
-        // A title alone is not enough: the due date is mandatory (SPEC §4.2).
-        viewModel.setTitle("Buy milk")
-        viewModel.save { saved = true }
-        assertTrue("due date must be flagged", viewModel.uiState.dueDateError)
-        assertFalse(saved)
-        assertTrue(repository.observeTodos().first().isEmpty())
-
-        // A date alone is not enough either.
-        viewModel.setTitle("   ")
-        viewModel.setDueDate(TodoDates.today())
+        // A title is still required.
         viewModel.save { saved = true }
         assertTrue("title must be flagged", viewModel.uiState.titleError)
-        assertFalse(viewModel.uiState.dueDateError)
         assertFalse(saved)
         assertTrue(repository.observeTodos().first().isEmpty())
 
-        // Both together save; the title is trimmed and the row gets an order.
+        // The due date is optional: a title alone now saves.
         viewModel.setTitle("  Buy milk  ")
         viewModel.save { saved = true }
 
@@ -98,9 +88,27 @@ class TodoFeatureTest {
         assertFalse(viewModel.uiState.isSaving)
         val todo = repository.observeTodos().first().single()
         assertEquals("Buy milk", todo.title)
-        assertEquals(TodoDates.today(), todo.dueDate)
+        assertNull("no due date is a valid saved state", todo.dueDate)
         assertFalse(todo.isCompleted)
         assertTrue("new rows are appended", todo.sortOrder > 0.0)
+    }
+
+    @Test
+    fun editor_canClearAnExistingDueDate() = runBlocking {
+        val id = repository.createTodo(
+            Todo(title = "Buy milk", dueDate = TodoDates.today(), sortOrder = 1.0),
+        )
+        val editor = TodoEditorViewModel(
+            repository,
+            SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to id)),
+        )
+
+        assertEquals(TodoDates.today(), editor.uiState.dueDate)
+
+        editor.setDueDate(null)
+        editor.save {}
+
+        assertNull(repository.getTodo(id)!!.dueDate)
     }
 
     @Test
@@ -181,6 +189,127 @@ class TodoFeatureTest {
             listOf(first, second, third),
             repository.observeTodos().first().map { it.id },
         )
+    }
+
+    @Test
+    fun subtaskCascade_allCheckedChecksParent_andParentToggleCascades() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
+        val first = repository.addSubtask(
+            Subtask(parentType = ParentType.TODO, parentId = todoId, title = "Book flights"),
+        )
+        val second = repository.addSubtask(
+            Subtask(parentType = ParentType.TODO, parentId = todoId, title = "Pack bags"),
+        )
+
+        // One open child keeps the parent open.
+        repository.setSubtaskCompleted(first, completed = true)
+        assertFalse(repository.getTodo(todoId)!!.isCompleted)
+
+        // All children done → parent done (SPEC §8).
+        repository.setSubtaskCompleted(second, completed = true)
+        assertTrue(repository.getTodo(todoId)!!.isCompleted)
+        assertNotNull(repository.getTodo(todoId)!!.completedAt)
+
+        // Parent unchecked → every child unchecked.
+        repository.setCompleted(todoId, completed = false)
+        assertTrue(repository.getSubtasks(todoId).none { it.isCompleted })
+
+        // Parent checked → every child checked.
+        repository.setCompleted(todoId, completed = true)
+        assertTrue(repository.getSubtasks(todoId).all { it.isCompleted })
+    }
+
+    @Test
+    fun addingOpenSubtask_reopensCompletedParent_andDeletingReevaluates() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
+        val first = repository.addSubtask(
+            Subtask(parentType = ParentType.TODO, parentId = todoId, title = "Book flights"),
+        )
+        repository.setSubtaskCompleted(first, completed = true)
+        assertTrue(repository.getTodo(todoId)!!.isCompleted)
+
+        // A new open child means "all done" no longer holds.
+        val second = repository.addSubtask(
+            Subtask(parentType = ParentType.TODO, parentId = todoId, title = "Pack bags"),
+        )
+        assertFalse(repository.getTodo(todoId)!!.isCompleted)
+
+        repository.setSubtaskCompleted(second, completed = true)
+        assertTrue(repository.getTodo(todoId)!!.isCompleted)
+
+        // Removing a done child leaves only done children, so the parent stays done.
+        repository.deleteSubtask(second)
+        assertTrue(repository.getTodo(todoId)!!.isCompleted)
+    }
+
+    @Test
+    fun editorParentToggle_updatesSubtaskList_andUiState() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
+        repository.addSubtask(
+            Subtask(parentType = ParentType.TODO, parentId = todoId, title = "Book flights"),
+        )
+        val editor = TodoEditorViewModel(
+            repository,
+            SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
+        )
+
+        assertEquals(1, editor.subtasks.size)
+        assertFalse(editor.uiState.isCompleted)
+
+        editor.setParentCompleted(completed = true)
+        assertTrue(editor.uiState.isCompleted)
+        assertTrue("parent → children", editor.subtasks.all { it.isCompleted })
+
+        editor.setSubtaskCompleted(editor.subtasks.first().id, completed = false)
+        assertFalse("child unchecked → parent unchecked", editor.uiState.isCompleted)
+    }
+
+    @Test
+    fun editor_addsEditsAndDeletesSubtasks() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
+        val editor = TodoEditorViewModel(
+            repository,
+            SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
+        )
+
+        var added = false
+        editor.addSubtask("  Book flights ", "  window seat ", TodoDates.today() + 1) { added = it }
+        assertTrue(added)
+        val child = repository.getSubtasks(todoId).single()
+        assertEquals("Book flights", child.title)
+        assertEquals("window seat", child.note)
+        assertEquals(TodoDates.today() + 1, child.deadline)
+        assertEquals(1, editor.subtasks.size)
+
+        var updated = false
+        editor.updateSubtask(child.id, "Book train", "", null) { updated = it }
+        assertTrue(updated)
+        val changed = repository.getSubtask(child.id)!!
+        assertEquals("Book train", changed.title)
+        assertEquals("", changed.note)
+        assertNull(changed.deadline)
+
+        editor.deleteSubtask(child.id)
+        assertTrue(repository.getSubtasks(todoId).isEmpty())
+        assertTrue(editor.subtasks.isEmpty())
+    }
+
+    @Test
+    fun editor_addingFirstSubtask_commitsNewParent() = runBlocking {
+        val editor = TodoEditorViewModel(repository, SavedStateHandle())
+        editor.setTitle("Plan trip")
+        editor.setNote("  in spring ")
+
+        var added = false
+        editor.addSubtask("Book flights", "", null) { added = it }
+
+        assertTrue(added)
+        val parent = repository.observeTodos().first().single()
+        assertEquals("Plan trip", parent.title)
+        assertEquals("in spring", parent.note)
+        assertNull(parent.dueDate)
+        assertEquals(1, repository.getSubtasks(parent.id).size)
+        assertTrue("the parent now exists, so the editor is in edit mode", editor.isEditing)
     }
 
     @Test
