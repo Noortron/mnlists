@@ -7,16 +7,20 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import com.example.mnlists.data.local.MnlistsDatabase
 import com.example.mnlists.data.local.entity.Habit
+import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.repository.HabitRepository
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.util.concurrent.Executor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -141,17 +145,49 @@ class HabitsUiTest {
         compose.onNodeWithText("before bed").assertIsDisplayed()
 
         // Deleting is a two-step action: the dialog appears and cancel is a no-op.
-        compose.onNodeWithText("Delete habit").performClick()
+        compose.onNodeWithText("Delete habit").performScrollTo().performClick()
         compose.onNodeWithText("Delete habit?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithText("Delete habit?").assertDoesNotExist()
         assertTrue(repository.getHabit(habitId) != null)
 
         // Confirming really deletes and finishes the screen.
-        compose.onNodeWithText("Delete habit").performClick()
+        compose.onNodeWithText("Delete habit").performScrollTo().performClick()
         compose.onNodeWithText("Delete").performClick()
         assertNull(repository.getHabit(habitId))
         assertTrue("onDone must run after deletion", done)
+    }
+
+    @Test
+    fun editor_usesRoundCounterToggles_andOffersNoMonthlyReset() = runBlocking {
+        val viewModel = HabitEditorViewModel(repository, SavedStateHandle())
+
+        compose.setContent {
+            MaterialTheme {
+                HabitEditorScreen(onDone = {}, viewModel = viewModel)
+            }
+        }
+
+        // Round direction toggles start as "+ only"; flip them to "− only".
+        compose.onNodeWithContentDescription("Increase").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Decrease").performClick()
+        compose.onNodeWithContentDescription("Increase").performClick()
+
+        // Full-width schedule dropdown: Daily / Weekly / Every N days, no Monthly.
+        compose.onNodeWithText("Daily").performClick()
+        compose.onNodeWithText("Weekly").assertIsDisplayed()
+        compose.onNodeWithText("Every N days").assertIsDisplayed()
+        compose.onNodeWithText("Monthly").assertDoesNotExist()
+        compose.onNodeWithText("Every N days").performClick()
+
+        viewModel.setTitle("Meditate")
+        compose.onNodeWithText("Save").performScrollTo().performClick()
+
+        val saved = repository.observeHabits().first().single()
+        assertEquals("Meditate", saved.title)
+        assertFalse("increase toggle was turned off", saved.allowUp)
+        assertTrue("decrease toggle was turned on", saved.allowDown)
+        assertEquals(ResetSchedule.EVERY_N, saved.resetSchedule)
     }
 
     private companion object {

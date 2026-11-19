@@ -1,5 +1,13 @@
 package com.example.mnlists.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -20,11 +28,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -47,6 +57,9 @@ import com.example.mnlists.ui.screens.DailiesScreen
 import com.example.mnlists.ui.screens.SettingsScreen
 import com.example.mnlists.ui.screens.TodosScreen
 
+/** Duration of the NavHost slide overlap, in milliseconds. */
+private const val NAV_TRANSITION_MS = 260
+
 /**
  * Root composable: one Scaffold with the top bar, the four-tab bottom bar, the
  * context-aware FAB, and a single NavHost that also hosts Settings and About.
@@ -64,6 +77,14 @@ fun MnlistsApp(
     val isHabitEditor = currentRoute == MnlistsRoutes.HABIT_NEW ||
         currentRoute == MnlistsRoutes.HABIT_EDITOR
 
+    // Keep the bar visible during its exit animation (route becomes null first).
+    var lastTopLevel by remember { mutableStateOf<TopLevelDestination?>(null) }
+    LaunchedEffect(topLevel) {
+        if (topLevel != null) lastTopLevel = topLevel
+    }
+    val showBottomBar = topLevel != null || currentRoute == null
+    val bottomBarSelection = topLevel ?: lastTopLevel ?: TopLevelDestination.HABITS
+
     val title = when {
         topLevel != null -> stringResource(topLevel.titleRes)
         currentRoute == MnlistsRoutes.HABIT_NEW -> stringResource(R.string.habit_new_title)
@@ -79,15 +100,24 @@ fun MnlistsApp(
             MnlistsTopBar(
                 title = title,
                 showOverflowMenu = !isSubScreen && !isHabitEditor,
+                containerColor = if (isHabitEditor) {
+                    MaterialTheme.colorScheme.surfaceContainer
+                } else {
+                    MaterialTheme.colorScheme.background
+                },
                 onNavigateBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigateSingleTop(MnlistsRoutes.SETTINGS) },
                 onOpenAbout = { navController.navigateSingleTop(MnlistsRoutes.ABOUT) },
             )
         },
         bottomBar = {
-            if (topLevel != null) {
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = expandVertically(animationSpec = tween(200)) + fadeIn(tween(200)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(tween(160)),
+            ) {
                 MnlistsBottomBar(
-                    selected = topLevel,
+                    selected = bottomBarSelection,
                     onSelect = { destination -> navController.navigateToTopLevel(destination) },
                 )
             }
@@ -112,6 +142,20 @@ fun MnlistsApp(
             navController = navController,
             startDestination = MnlistsRoutes.HABITS,
             modifier = Modifier.padding(innerPadding),
+            // Overlapping slide keeps the outgoing screen opaque underneath, so
+            // the background never flashes through mid-navigation.
+            enterTransition = {
+                slideInHorizontally(animationSpec = tween(NAV_TRANSITION_MS)) { it }
+            },
+            exitTransition = {
+                slideOutHorizontally(animationSpec = tween(NAV_TRANSITION_MS)) { -it / 6 }
+            },
+            popEnterTransition = {
+                slideInHorizontally(animationSpec = tween(NAV_TRANSITION_MS)) { -it / 6 }
+            },
+            popExitTransition = {
+                slideOutHorizontally(animationSpec = tween(NAV_TRANSITION_MS)) { it }
+            },
         ) {
             composable(MnlistsRoutes.HABITS) {
                 HabitsRoute(
@@ -150,6 +194,7 @@ fun MnlistsApp(
 private fun MnlistsTopBar(
     title: String,
     showOverflowMenu: Boolean,
+    containerColor: Color,
     onNavigateBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -200,10 +245,10 @@ private fun MnlistsTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-            actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+            containerColor = containerColor,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface,
         ),
     )
 }
@@ -254,8 +299,7 @@ private fun AddFab(destination: TopLevelDestination, onClick: () -> Unit) {
 }
 
 /** Switches between the four top-level tabs without growing the back stack. */
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
-    navigate(destination.route) {
+private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {    navigate(destination.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true

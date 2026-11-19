@@ -2,8 +2,8 @@
 
 ## Project Status
 - Current step: 5
-- Last updated: 2026-11-18T22:17:45+06:00
-- Overall: 5/16 steps complete
+- Last updated: 2026-11-19T12:55:41+06:00
+- Overall: 5/16 steps complete (plus a completed Habits UI improvement pass)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -83,6 +83,17 @@
   - Edited: `ui/MnlistsApp.kt`, `ui/navigation/Destinations.kt`, `res/values/strings.xml`, `app/build.gradle.kts`, `gradle/libs.versions.toml`; deleted `ui/screens/HabitsScreen.kt`
 - Notes / decisions: Step 4 stores the reset schedule but does not act on it (auto-reset + history are Step 5). Saving with no enabled direction is blocked, since a habit without a counter direction makes no sense in this UI. Weekly reset-day is optional (`null` = calendar week). Test-only setup: `testOptions.unitTests.isIncludeAndroidResources = true` (Robolectric loads the merged manifest/resources so Compose tests can launch `ComponentActivity`), Compose `ui-test-junit4` + debug `ui-test-manifest`, `kotlinx-coroutines-test` (Unconfined main), and Room query/transaction executors set to a direct executor so suspend DAO calls run inline and assertions are deterministic.
 
+## Improvements
+### Habits UI + navigation polish — 2026-11-19T12:55:41+06:00 — complete
+- **Editor redesign:** the create/edit page now uses a slightly darker `surfaceContainer` canvas with borderless input cards (`surface`, no outlines or underlines) grouped under **Details / Scheduling / Counter** headers. The note stays the emphasised field (primary-coloured label, 4–8 line input).
+- **Reset schedule:** full-width dropdown card (label + current value + chevron) instead of an outlined text field. Options are **Daily / Weekly / Every N days** only — **Monthly was removed from the UI** (see Deviations). The weekly reset-day uses the same full-width dropdown card.
+- **Counter options:** checkboxes/descriptions replaced by two round 60dp **− / +** toggles side by side under Scheduling. Enabled = filled primary circle with on-primary icon; disabled = outlined transparent circle with muted icon. Tapping toggles `allowDown`/`allowUp`; the "allow at least one direction" validation still blocks saving when both are off.
+- **Navigation flicker:** `NavHost` now uses a 260ms **overlapping slide** (new screen slides in from the right, outgoing screen shifts only 1/6 left and stays opaque; pop reversed) instead of the long default fade, so the background/base screen cannot flash through. The bottom bar animates in/out (expand/shrink + fade) and the top bar adopts the editor canvas colour on habit pages, removing layout/colour jumps between list and editor.
+- **Runtime verification (partial device + JVM):** the debug APK was installed and launched on the connected physical device; the Habits tab rendered correctly in the light palette (FAB, animated tab bar, empty state). The editor layout, dropdown contents and navigation transition could not be captured because the device was in active use (it switched to another app mid-check), so those still need a hands-on look. On the JVM everything is covered: `:app:testDebugUnitTest` → **14 tests, 0 failures, 0 errors, 0 skipped** (`DaoSmokeTest` 5, `HabitsFeatureTest` 5, `HabitsUiTest` 3, `ExampleUnitTest` 1). New `editor_usesRoundCounterToggles_andOffersNoMonthlyReset` toggles −/+ in the real composable, opens the schedule menu, asserts **Monthly is absent**, picks "Every N days", saves, and checks the stored habit is − only with an Every-N schedule. Existing list + delete-confirm UI tests still pass (delete now scrolls into view first). `:app:assembleDebug` → **BUILD SUCCESSFUL**.
+- **Not runtime-verified:** transition smoothness/flicker and the dark-palette editor still need a device smoke test; the nav wiring is compile-verified and UI behaviour is covered by the JVM Compose tests.
+- **Files touched:** `ui/habits/HabitEditorScreen.kt` (rewritten), `ui/MnlistsApp.kt` (NavHost transitions, animated bottom bar, editor top-bar colour), `res/values/strings.xml` (new section/counter strings, removed checkbox strings), `app/src/test/java/com/example/mnlists/ui/habits/HabitsUiTest.kt` (new test + scroll-to for delete).
+- **Data layer untouched:** no entity/DAO/repository/Room schema change; no Step 5 work was started.
+
 ## Next Up
 - Step 5: Habits — auto-reset (daily / every N days / weekly / monthly per `ResetSchedule`, optional weekday) + history writing (`HabitLog`, cycle start/end, count at end of cycle).
 
@@ -95,6 +106,8 @@
 - **Robolectric added (test-only)** so the Room smoke test can run on the JVM — the AVD still cannot boot here (disk space), and an emulator run would not be repeatable. Robolectric downloads `android-all` jars on first run; test JVM warnings about native access are benign.
 - **Room schema location** is `app/schemas` (KSP arg `room.schemaLocation`); schema v1 is committed. Future entity changes need real migrations (no destructive fallback by design).
 - **Step 4 runtime verification is JVM-only** (Robolectric + Compose UI test). The AVD still cannot boot (disk space), so the FAB navigation click, top-bar back arrow, Hilt graph, and real-device input/theme behavior are code-reviewed + compile-verified but not exercised end-to-end. Needs a user device smoke test. Compose UI tests required `unitTests.isIncludeAndroidResources = true` and `ui-test-manifest`; Room executors are direct executors in tests only.
+- **Monthly removed from the habit reset UI only** (per user request): `ResetSchedule.MONTHLY` still exists in the enum/DB and legacy rows still render a "Monthly" label, but the editor dropdown no longer offers it. No Room/schema change was made.
+- **Navigation flicker fix is compile-verified, not visually verified**: the NavHost slide + animated bottom bar cannot be judged on the JVM; a device smoke test is needed. A start was made on 2026-11-19 (APK installed/launched, Habits list confirmed), but the device was actively in use so the editor/transition capture was not completed.
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
 
 ## Recovery Notes
@@ -102,7 +115,8 @@
 - No `java` on PATH. Always set `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"` (OpenJDK 25) before Gradle:
   `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:assembleDebug --console=plain`
 - Stack: Gradle 9.6.0, AGP 9.5.1, built-in Kotlin (KGP 2.2.10), KSP 2.3.14, Compose BOM 2026.09.00, Navigation-Compose 2.10.2, Hilt 2.60.1, Lifecycle 2.11.0, Activity-Compose 1.13.0, DataStore Preferences 1.3.0, SDK 37, minSdk 26, namespace `com.example.mnlists`.
-- Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt`.
+- Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt` (NavHost slide constants: `NAV_TRANSITION_MS = 260`).
+- Habits UI: list in `ui/habits/HabitsScreen.kt`; editor in `ui/habits/HabitEditorScreen.kt` (borderless `InputCard` / `DropdownCard` / `DirectionToggle` helpers are private at the bottom of that file; canvas colour is `surfaceContainer`).
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` (version 1).
 - Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources).

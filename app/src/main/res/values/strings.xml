@@ -27,27 +27,29 @@
     <!-- Habits (SPEC §4.1) -->
     <string name="habit_new_title">New habit</string>
     <string name="habit_edit_title">Edit habit</string>
+    <string name="habit_section_details">Details</string>
+    <string name="habit_section_scheduling">Scheduling</string>
+    <string name="habit_section_counter">Counter</string>
     <string name="habit_title_label">Title</string>
+    <string name="habit_title_hint">e.g. Read 10 pages</string>
     <string name="habit_title_error">Give this habit a title.</string>
     <string name="habit_note_label">Note</string>
     <string name="habit_note_hint">Anything you want to remember about this habit</string>
-    <string name="habit_schedule_section">Reset schedule</string>
-    <string name="habit_schedule_label">Resets</string>
+    <string name="habit_schedule_label">Reset schedule</string>
     <string name="habit_schedule_daily">Daily</string>
     <string name="habit_schedule_weekly">Weekly</string>
+    <!-- Kept for habits saved by older builds; not offered in the dropdown. -->
     <string name="habit_schedule_monthly">Monthly</string>
     <string name="habit_schedule_every_n">Every N days</string>
     <string name="habit_every_n_label">N (days)</string>
     <string name="habit_every_n_error">Enter a whole number of days (1 or more).</string>
     <string name="habit_every_n_support">The counter resets every N days.</string>
-    <string name="habit_weekday_label">Reset day (optional)</string>
+    <string name="habit_weekday_label">Reset day</string>
     <string name="habit_weekday_none">Calendar week</string>
-    <string name="habit_counter_section">Counter</string>
-    <string name="habit_allow_up">Allow + (increase)</string>
-    <string name="habit_allow_up_support">Show the + button on this habit.</string>
-    <string name="habit_allow_down">Allow − (decrease)</string>
-    <string name="habit_allow_down_support">Show the − button on this habit.</string>
-    <string name="habit_directions_error">Enable at least one direction.</string>
+    <string name="habit_counter_increase">Increase</string>
+    <string name="habit_counter_decrease">Decrease</string>
+    <string name="habit_counter_hint">Tap + or − to choose which buttons appear on the list.</string>
+    <string name="habit_directions_error">Allow at least one direction.</string>
     <string name="habit_save">Save</string>
     <string name="habit_delete">Delete habit</string>
     <string name="habit_delete_confirm_title">Delete habit?</string>
@@ -58,7 +60,8 @@
     <string name="action_cancel">Cancel</string>
 
     <!-- Settings / About placeholders -->
-    <string name="settings_appearance">Appearance</string>    <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>
     <string name="theme_mode_system">System default</string>
     <string name="theme_mode_system_description">Follow the device’s light or dark setting</string>
     <string name="theme_mode_light">Light</string>
