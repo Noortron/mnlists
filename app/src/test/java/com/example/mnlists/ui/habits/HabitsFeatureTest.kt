@@ -8,6 +8,7 @@ import com.example.mnlists.data.local.entity.Habit
 import com.example.mnlists.data.local.entity.HabitLog
 import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.repository.HabitRepository
+import com.example.mnlists.data.reset.HabitResetManager
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -40,6 +41,7 @@ class HabitsFeatureTest {
     private lateinit var context: Context
     private lateinit var database: MnlistsDatabase
     private lateinit var repository: HabitRepository
+    private lateinit var resetManager: HabitResetManager
 
     @Before
     fun setUp() {
@@ -53,6 +55,7 @@ class HabitsFeatureTest {
             .setTransactionExecutor(DIRECT_EXECUTOR)
             .build()
         repository = HabitRepository(database.habitDao(), database.habitLogDao())
+        resetManager = HabitResetManager(database)
     }
 
     @After
@@ -63,7 +66,7 @@ class HabitsFeatureTest {
 
     @Test
     fun counter_respectsEnabledDirectionsAndFloorAtZero() = runBlocking {
-        val viewModel = HabitsViewModel(repository)
+        val viewModel = HabitsViewModel(repository, resetManager)
 
         val bothId = repository.createHabit(
             Habit(title = "Read", allowUp = true, allowDown = true),

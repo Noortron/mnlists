@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,10 @@ fun HabitsRoute(
     viewModel: HabitsViewModel = hiltViewModel(),
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
+
+    // On-open check: roll over any habit cycles that ended while the app was
+    // closed (Step 5). Runs again when returning to this tab.
+    LaunchedEffect(Unit) { viewModel.checkResets() }
 
     HabitsScreen(
         habits = habits,

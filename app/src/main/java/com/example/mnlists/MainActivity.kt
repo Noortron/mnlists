@@ -7,10 +7,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.example.mnlists.data.reset.HabitResetManager
 import com.example.mnlists.ui.MnlistsApp
 import com.example.mnlists.ui.settings.SettingsViewModel
 import com.example.mnlists.ui.theme.MnlistsTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /**
  * The single Activity of the app. It owns the theme source of truth so the
@@ -19,9 +23,16 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject
+    lateinit var habitResetManager: HabitResetManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // On-open check for habit resets (SPEC §8, Step 5); idempotent.
+        lifecycleScope.launch { habitResetManager.applyDueResets() }
+
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()

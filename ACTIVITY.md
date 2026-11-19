@@ -1,9 +1,9 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 5
-- Last updated: 2026-11-19T12:55:41+06:00
-- Overall: 5/16 steps complete (plus a completed Habits UI improvement pass)
+- Current step: 6
+- Last updated: 2026-11-19T13:17:46+06:00
+- Overall: 6/16 steps complete (plus a completed Habits UI improvement pass)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -11,7 +11,7 @@
 - [x] Step 2: Theme system (light/dark palettes, system-follow + manual override)
 - [x] Step 3: Data layer: entities + DAOs + DB + repositories
 - [x] Step 4: Habits: list + create/edit + counter
-- [ ] Step 5: Habits: auto-reset + history
+- [x] Step 5: Habits: auto-reset + history
 - [ ] Step 6: To-Do's: list + create/edit
 - [ ] Step 7: Subtasks (To-Do's)
 - [ ] Step 8: Dailies: model + occurrence generation
@@ -82,6 +82,22 @@
   - New: `ui/habits/HabitsViewModel.kt`, `ui/habits/HabitEditorViewModel.kt`, `ui/habits/HabitsScreen.kt`, `ui/habits/HabitEditorScreen.kt`, `app/src/test/java/com/example/mnlists/ui/habits/HabitsFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/habits/HabitsUiTest.kt`
   - Edited: `ui/MnlistsApp.kt`, `ui/navigation/Destinations.kt`, `res/values/strings.xml`, `app/build.gradle.kts`, `gradle/libs.versions.toml`; deleted `ui/screens/HabitsScreen.kt`
 - Notes / decisions: Step 4 stores the reset schedule but does not act on it (auto-reset + history are Step 5). Saving with no enabled direction is blocked, since a habit without a counter direction makes no sense in this UI. Weekly reset-day is optional (`null` = calendar week). Test-only setup: `testOptions.unitTests.isIncludeAndroidResources = true` (Robolectric loads the merged manifest/resources so Compose tests can launch `ComponentActivity`), Compose `ui-test-junit4` + debug `ui-test-manifest`, `kotlinx-coroutines-test` (Unconfined main), and Room query/transaction executors set to a direct executor so suspend DAO calls run inline and assertions are deterministic.
+
+### Step 5 — Habits: auto-reset + history — 2026-11-19T13:17:46+06:00
+- What was done:
+  - `data/reset/HabitResetEngine.kt` (pure calculator): walks forward from `Habit.lastResetAt` and returns every completed cycle up to "now" as `DueHabitReset(cycleStart, cycleEnd, logDate, countAtEndOfCycle)`. Calendar-based boundaries in the device zone (injectable for tests): **Daily** = next local midnight; **Weekly** = next configured weekday (default Monday / calendar week); **Monthly** = 1st of the next month; **Every N days** = midnight N days later (N < 1 falls back to 1). Clock moved backwards → no reset; catch-up capped at 400 cycles per check.
+  - `data/reset/HabitResetManager.kt` (`@Singleton`): in one Room transaction, inserts a `HabitLog` per elapsed cycle with the current count, then calls the existing `HabitDao.applyReset` to set `currentCount` to the §9 default 0 and move `lastResetAt` to the last boundary. A `Mutex` makes repeated checks idempotent (no duplicate history); due and not-due habits are handled in the same pass.
+  - Triggers (on-open check per §12, no WorkManager): `MainActivity.onCreate` launches `applyDueResets()` in `lifecycleScope`, and `HabitsRoute` calls `HabitsViewModel.checkResets()` every time the tab (re)enters composition, so a long-running app also rolls over at the boundary.
+  - History stays orphan-safe: `HabitLog` has no FK (Step 3), so deleting a habit still keeps its reset history. No schema change was needed — the `applyReset` DAO helper and `insertAll` already existed.
+- **Verification (explicit):** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**; JUnit totals **25 tests, 0 failures, 0 errors, 0 skipped** (`DaoSmokeTest` 5, `HabitResetEngineTest` 8, `HabitResetManagerTest` 3, `HabitsFeatureTest` 5, `HabitsUiTest` 3, `ExampleUnitTest` 1).
+  - `HabitResetEngineTest` (plain JUnit): daily logs one entry per elapsed day with correct cycle boundaries/log dates; not due within the same day; weekly uses the configured weekday (Wed) and falls back to Monday when unset; monthly boundaries are Feb 1 / Mar 1; Every-N(3) boundaries at Nov 13/16; N=0 falls back to one day; a backwards clock never resets.
+  - `HabitResetManagerTest` (Robolectric + real in-memory Room): 2-day daily catch-up writes 2 new logs (each with count-at-end = 7), keeps the pre-existing log, resets `currentCount` to 0, moves `lastResetAt` to the boundary, updates the live `observeHabits()` flow, restarts counting from 1, and a second check at the same instant adds nothing (idempotent); only the due habit is reset while a fresh one keeps its count and has no logs; a Weekly/Wednesday habit resets on the correct weekday and logs count 4.
+  - Also verified: `:app:assembleDebug` → **BUILD SUCCESSFUL**.
+- **Device verification gap (logged as required):** no on-device run of a short-schedule reset was possible. The connected phone was in active use by the user (Twitter in the foreground), so the APK was not installed/relaunched and no habit was left overnight to observe a real reset. The `MainActivity` Hilt injection + trigger and the visual counter rollover therefore still need a device smoke test; behavior itself is covered by the JVM tests above.
+- Files touched:
+  - New: `data/reset/HabitResetEngine.kt`, `data/reset/HabitResetManager.kt`, `app/src/test/java/com/example/mnlists/data/reset/HabitResetEngineTest.kt`, `app/src/test/java/com/example/mnlists/data/reset/HabitResetManagerTest.kt`
+  - Edited: `MainActivity.kt` (inject manager + on-open check), `ui/habits/HabitsViewModel.kt` (inject manager, `checkResets()`), `ui/habits/HabitsScreen.kt` (LaunchedEffect on route entry), `app/src/test/java/com/example/mnlists/ui/habits/HabitsFeatureTest.kt` (new constructor param)
+- Notes / decisions: "on-open check" chosen over WorkManager (allowed by §12, simpler, no background scheduling/notification work yet). Resets are calendar-aligned at local midnight rather than fixed 24h elapses, matching the Daily/Weekly/Monthly labels and the optional weekday; `lastResetAt` is moved to the boundary (not "now") so catch-up stays exact. MONTHLY remains supported by the engine even though the editor no longer offers it (legacy rows still reset correctly). Start value after reset = 0 (SPEC §9 default).
 
 ## Improvements
 ### Habits UI + navigation polish — 2026-11-19T12:55:41+06:00 — complete
