@@ -56,8 +56,40 @@
     <string name="habit_delete_confirm_body">This habit will be deleted. Its history is kept.</string>
     <string name="habit_increase">Increase %1$s</string>
     <string name="habit_decrease">Decrease %1$s</string>
+
+    <!-- To-Do's (SPEC §4.2) -->
+    <string name="todo_new_title">New to-do</string>
+    <string name="todo_edit_title">Edit to-do</string>
+    <string name="todo_section_details">Details</string>
+    <string name="todo_section_due">Due date</string>
+    <string name="todo_title_label">Title</string>
+    <string name="todo_title_hint">e.g. Send the rent receipt</string>
+    <string name="todo_title_error">Give this to-do a title.</string>
+    <string name="todo_note_label">Note</string>
+    <string name="todo_note_hint">Anything you want to remember about this to-do</string>
+    <string name="todo_due_label">Due date</string>
+    <string name="todo_due_unset">Choose a date</string>
+    <string name="todo_due_error">Pick a due date.</string>
+    <string name="todo_due_support">A due date is required.</string>
+    <string name="todo_due_today">Today</string>
+    <string name="todo_due_tomorrow">Tomorrow</string>
+    <string name="todo_due_next_week">Next week</string>
+    <string name="todo_section_open">To do</string>
+    <string name="todo_section_completed">Completed</string>
+    <string name="todo_due_today_label">Due today</string>
+    <string name="todo_due_tomorrow_label">Due tomorrow</string>
+    <string name="todo_due_on">Due %1$s</string>
+    <string name="todo_overdue_on">Overdue · %1$s</string>
+    <string name="todo_mark_done">Mark %1$s as done</string>
+    <string name="todo_mark_not_done">Mark %1$s as not done</string>
+    <string name="todo_save">Save</string>
+    <string name="todo_delete">Delete to-do</string>
+    <string name="todo_delete_confirm_title">Delete to-do?</string>
+    <string name="todo_delete_confirm_body">This deletes the to-do and any subtasks or reminders attached to it.</string>
+
     <string name="action_delete">Delete</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
 
     <!-- Settings / About placeholders -->
     <string name="settings_appearance">Appearance</string>

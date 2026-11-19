@@ -55,7 +55,8 @@ import com.example.mnlists.ui.screens.AboutScreen
 import com.example.mnlists.ui.screens.CalendarScreen
 import com.example.mnlists.ui.screens.DailiesScreen
 import com.example.mnlists.ui.screens.SettingsScreen
-import com.example.mnlists.ui.screens.TodosScreen
+import com.example.mnlists.ui.todos.TodoEditorScreen
+import com.example.mnlists.ui.todos.TodosRoute
 
 /** Duration of the NavHost slide overlap, in milliseconds. */
 private const val NAV_TRANSITION_MS = 260
@@ -76,6 +77,9 @@ fun MnlistsApp(
     val isSubScreen = currentRoute == MnlistsRoutes.SETTINGS || currentRoute == MnlistsRoutes.ABOUT
     val isHabitEditor = currentRoute == MnlistsRoutes.HABIT_NEW ||
         currentRoute == MnlistsRoutes.HABIT_EDITOR
+    val isTodoEditor = currentRoute == MnlistsRoutes.TODO_NEW ||
+        currentRoute == MnlistsRoutes.TODO_EDITOR
+    val isEditor = isHabitEditor || isTodoEditor
 
     // Keep the bar visible during its exit animation (route becomes null first).
     var lastTopLevel by remember { mutableStateOf<TopLevelDestination?>(null) }
@@ -89,6 +93,8 @@ fun MnlistsApp(
         topLevel != null -> stringResource(topLevel.titleRes)
         currentRoute == MnlistsRoutes.HABIT_NEW -> stringResource(R.string.habit_new_title)
         currentRoute == MnlistsRoutes.HABIT_EDITOR -> stringResource(R.string.habit_edit_title)
+        currentRoute == MnlistsRoutes.TODO_NEW -> stringResource(R.string.todo_new_title)
+        currentRoute == MnlistsRoutes.TODO_EDITOR -> stringResource(R.string.todo_edit_title)
         currentRoute == MnlistsRoutes.SETTINGS -> stringResource(R.string.menu_settings)
         currentRoute == MnlistsRoutes.ABOUT -> stringResource(R.string.menu_about)
         else -> stringResource(R.string.app_name)
@@ -99,8 +105,8 @@ fun MnlistsApp(
         topBar = {
             MnlistsTopBar(
                 title = title,
-                showOverflowMenu = !isSubScreen && !isHabitEditor,
-                containerColor = if (isHabitEditor) {
+                showOverflowMenu = !isSubScreen && !isEditor,
+                containerColor = if (isEditor) {
                     MaterialTheme.colorScheme.surfaceContainer
                 } else {
                     MaterialTheme.colorScheme.background
@@ -130,7 +136,9 @@ fun MnlistsApp(
                         when (topLevel) {
                             TopLevelDestination.HABITS ->
                                 navController.navigate(MnlistsRoutes.HABIT_NEW)
-                            // Dailies/To-Do's create flows arrive in Steps 6 and 9.
+                            TopLevelDestination.TODOS ->
+                                navController.navigate(MnlistsRoutes.TODO_NEW)
+                            // The Dailies create flow arrives in Step 9.
                             else -> Unit
                         }
                     },
@@ -176,7 +184,24 @@ fun MnlistsApp(
                 HabitEditorScreen(onDone = { navController.popBackStack() })
             }
             composable(MnlistsRoutes.DAILIES) { DailiesScreen() }
-            composable(MnlistsRoutes.TODOS) { TodosScreen() }
+            composable(MnlistsRoutes.TODOS) {
+                TodosRoute(
+                    onOpenTodo = { todoId ->
+                        navController.navigate(MnlistsRoutes.todoEditorRoute(todoId))
+                    },
+                )
+            }
+            composable(MnlistsRoutes.TODO_NEW) {
+                TodoEditorScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                route = MnlistsRoutes.TODO_EDITOR,
+                arguments = listOf(
+                    navArgument(MnlistsRoutes.TODO_ID_ARG) { type = NavType.LongType },
+                ),
+            ) {
+                TodoEditorScreen(onDone = { navController.popBackStack() })
+            }
             composable(MnlistsRoutes.CALENDAR) { CalendarScreen() }
             composable(MnlistsRoutes.SETTINGS) {
                 SettingsScreen(

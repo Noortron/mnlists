@@ -1,9 +1,9 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 6
-- Last updated: 2026-11-19T13:17:46+06:00
-- Overall: 6/16 steps complete (plus a completed Habits UI improvement pass)
+- Current step: 7
+- Last updated: 2026-11-19T13:39:58+06:00
+- Overall: 7/16 steps complete (plus a completed Habits UI improvement pass)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -12,7 +12,7 @@
 - [x] Step 3: Data layer: entities + DAOs + DB + repositories
 - [x] Step 4: Habits: list + create/edit + counter
 - [x] Step 5: Habits: auto-reset + history
-- [ ] Step 6: To-Do's: list + create/edit
+- [x] Step 6: To-Do's: list + create/edit
 - [ ] Step 7: Subtasks (To-Do's)
 - [ ] Step 8: Dailies: model + occurrence generation
 - [ ] Step 9: Dailies UI + subtasks + skip
@@ -99,6 +99,23 @@
   - Edited: `MainActivity.kt` (inject manager + on-open check), `ui/habits/HabitsViewModel.kt` (inject manager, `checkResets()`), `ui/habits/HabitsScreen.kt` (LaunchedEffect on route entry), `app/src/test/java/com/example/mnlists/ui/habits/HabitsFeatureTest.kt` (new constructor param)
 - Notes / decisions: "on-open check" chosen over WorkManager (allowed by §12, simpler, no background scheduling/notification work yet). Resets are calendar-aligned at local midnight rather than fixed 24h elapses, matching the Daily/Weekly/Monthly labels and the optional weekday; `lastResetAt` is moved to the boundary (not "now") so catch-up stays exact. MONTHLY remains supported by the engine even though the editor no longer offers it (legacy rows still reset correctly). Start value after reset = 0 (SPEC §9 default).
 
+### Step 6 — To-Do's: list + create/edit — 2026-11-19T13:39:58+06:00
+- What was done:
+  - `ui/todos/TodosScreen.kt`: `TodosRoute` + list. Rows show a checkbox, title, truncated note preview and a due label ("Due today" / "Due tomorrow" / "Due <date>" / "Overdue · <date>" in the error colour). Incomplete rows sit under a **To do** header; completed rows are collected in a **Completed** section at the bottom with muted text and a `LineThrough` span (SPEC §4.6). Rows animate their placement when they move between sections (`Modifier.animateItem()`). The checkbox toggles completion, tapping the title opens the editor, and an empty list keeps the existing placeholder.
+  - `ui/todos/TodosViewModel.kt`: live `StateFlow<List<Todo>>` from `TodoRepository.observeTodos()` (the DAO already orders `isCompleted ASC, sortOrder ASC`) and `setCompleted(id, completed)`, which uses the Step 3 repository transaction so the §8 subtask cascade stays intact.
+  - `ui/todos/TodoEditorScreen.kt` + `TodoEditorViewModel.kt`: create (`TODO_NEW`) and edit (`TODO_EDITOR/{todoId}`) form in the habits visual language (surfaceContainer canvas, borderless input cards, emphasised note). **Due date is mandatory**: a full-width date card opens the Material 3 `DatePickerDialog` and Today / Tomorrow / Next week chips cover the common cases; saving without a date shows "Pick a due date." and writes nothing, and a blank title shows its own error. New rows get `sortOrder = max + 1`; editing preserves `isCompleted`/`completedAt`. In edit mode a Delete button opens an AlertDialog that warns about subtasks/reminders and calls `TodoRepository.deleteTodo` (transactional cascade).
+  - `ui/todos/TodoDates.kt`: pure epoch-day helpers (`today`, localized `format`, date-picker UTC millis round trip).
+  - Navigation: `TODO_NEW` / `TODO_EDITOR` routes + `todoId` arg; the To-Do FAB now opens the create page; editor pages get New/Edit titles, the surfaceContainer top bar and a back arrow.
+  - Deleted the old `ui/screens/TodosScreen.kt` placeholder.
+- **Verification:** `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**, **33 tests, 0 failures, 0 errors, 0 skipped** (previous 25 + `TodoFeatureTest` 4 + `TodoUiTest` 4). `:app:assembleDebug` → **BUILD SUCCESSFUL**.
+  - `TodoFeatureTest` (Robolectric + real in-memory Room): a title without a date and a date without a title both refuse to save and persist nothing; a valid save trims the title, stores today's epoch day and a positive `sortOrder`; an existing to-do loads into the editor, edits title/note (trimmed)/due date while keeping completion, then delete removes it together with a subtask and a reminder row; completing a to-do stamps `completedAt` and moves it below the two open rows, unchecking clears `completedAt` and restores the original order; date-picker UTC conversions round-trip.
+  - `TodoUiTest` (Compose + Robolectric): the list renders open and completed rows and geometry asserts the open row is above the **Completed** header while the completed row is below it; the completed title's semantics carry a `LineThrough` span and the open title does not (a real style assertion, not just text presence); checkbox and title taps report the right row; the editor refuses to finish with no due date (error displayed, nothing stored), then the Today chip creates the to-do; the date card opens the real date-picker dialog and OK stores today; the edit page shows stored values, and Cancel/Delete on the cascade dialog behave correctly.
+- Files touched:
+  - New: `ui/todos/TodosScreen.kt`, `ui/todos/TodosViewModel.kt`, `ui/todos/TodoEditorScreen.kt`, `ui/todos/TodoEditorViewModel.kt`, `ui/todos/TodoDates.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoFeatureTest.kt`, `app/src/test/java/com/example/mnlists/ui/todos/TodoUiTest.kt`
+  - Edited: `ui/navigation/Destinations.kt` (To-Do routes), `ui/MnlistsApp.kt` (FAB + editor destinations + titles/top-bar colour), `res/values/strings.xml` (To-Do strings + `action_ok`)
+  - Deleted: `ui/screens/TodosScreen.kt` (placeholder)
+- Notes / decisions: Subtasks and reminders are intentionally absent from the editor until Steps 7 and 11; the delete dialog already warns that they are removed. Open rows keep the repository/DAO `sortOrder` rather than sorting by due date, so Step 10's manual reordering will not have to undo a list-side sort. The list/form helpers are duplicated from `HabitEditorScreen` (private composables) instead of being shared; a polish pass can unify them. No Room entity/DAO/schema change.
+
 ## Improvements
 ### Habits UI + navigation polish — 2026-11-19T12:55:41+06:00 — complete
 - **Editor redesign:** the create/edit page now uses a slightly darker `surfaceContainer` canvas with borderless input cards (`surface`, no outlines or underlines) grouped under **Details / Scheduling / Counter** headers. The note stays the emphasised field (primary-coloured label, 4–8 line input).
@@ -111,7 +128,7 @@
 - **Data layer untouched:** no entity/DAO/repository/Room schema change; no Step 5 work was started.
 
 ## Next Up
-- Step 5: Habits — auto-reset (daily / every N days / weekly / monthly per `ResetSchedule`, optional weekday) + history writing (`HabitLog`, cycle start/end, count at end of cycle).
+- Step 7: Subtasks (To-Do's) — add/edit/delete with note + deadline, §8 two-way parent/subtask cascade, in-place gray+strike, collapse/expand via drag handle (expanded by default).
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -124,6 +141,8 @@
 - **Step 4 runtime verification is JVM-only** (Robolectric + Compose UI test). The AVD still cannot boot (disk space), so the FAB navigation click, top-bar back arrow, Hilt graph, and real-device input/theme behavior are code-reviewed + compile-verified but not exercised end-to-end. Needs a user device smoke test. Compose UI tests required `unitTests.isIncludeAndroidResources = true` and `ui-test-manifest`; Room executors are direct executors in tests only.
 - **Monthly removed from the habit reset UI only** (per user request): `ResetSchedule.MONTHLY` still exists in the enum/DB and legacy rows still render a "Monthly" label, but the editor dropdown no longer offers it. No Room/schema change was made.
 - **Navigation flicker fix is compile-verified, not visually verified**: the NavHost slide + animated bottom bar cannot be judged on the JVM; a device smoke test is needed. A start was made on 2026-11-19 (APK installed/launched, Habits list confirmed), but the device was actively in use so the editor/transition capture was not completed.
+- **Step 6 runtime verification is JVM-only**: no on-device run happened. The connected phone was in active use (LibChecker in the foreground) and was not touched. FAB → create navigation, the real date-picker dialog, keyboard input and dark-palette list rendering are compile-verified and covered by the Robolectric Compose tests, but not exercised end-to-end on a device.
+- Test-only deprecation warning: `createComposeRule()` suggests the v2 rule (StandardTestDispatcher). The current rule matches the existing Habits UI tests and passes; migration can wait for the polish pass.
 - Open question (default proceeding): habit "start value" after reset = 0; deleting a habit keeps its history (per §9 defaults).
 
 ## Recovery Notes
@@ -133,6 +152,7 @@
 - Stack: Gradle 9.6.0, AGP 9.5.1, built-in Kotlin (KGP 2.2.10), KSP 2.3.14, Compose BOM 2026.09.00, Navigation-Compose 2.10.2, Hilt 2.60.1, Lifecycle 2.11.0, Activity-Compose 1.13.0, DataStore Preferences 1.3.0, SDK 37, minSdk 26, namespace `com.example.mnlists`.
 - Source root: `app/src/main/java/com/example/mnlists/`. Routes in `ui/navigation/Destinations.kt`; scaffold in `ui/MnlistsApp.kt` (NavHost slide constants: `NAV_TRANSITION_MS = 260`).
 - Habits UI: list in `ui/habits/HabitsScreen.kt`; editor in `ui/habits/HabitEditorScreen.kt` (borderless `InputCard` / `DropdownCard` / `DirectionToggle` helpers are private at the bottom of that file; canvas colour is `surfaceContainer`).
+- To-Do UI: list in `ui/todos/TodosScreen.kt`; editor in `ui/todos/TodoEditorScreen.kt` (same private input-card pattern); date helpers in `ui/todos/TodoDates.kt`; routes `todos/new` and `todos/edit/{todoId}`. List order comes from `TodoDao` (`isCompleted ASC, sortOrder ASC`), and the screen only splits open vs Completed.
 - Theme: palettes/tokens in `ui/theme/Color.kt`, scheme + system-bar handling in `ui/theme/Theme.kt`, rounding in `ui/theme/Shape.kt`. Preference: `data/settings/ThemeMode.kt` + `SettingsRepository` (DataStore file `settings.preferences_pb`), exposed via `ui/settings/SettingsViewModel`, applied in `MainActivity`.
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` (version 1).
 - Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources).

@@ -26,6 +26,15 @@ object MnlistsRoutes {
     const val HABIT_ID_ARG = "habitId"
 
     fun habitEditorRoute(habitId: Long): String = "habits/edit/$habitId"
+
+    /** To-do create page (FAB). */
+    const val TODO_NEW = "todos/new"
+
+    /** To-do edit page; `{todoId}` is a Long nav argument. */
+    const val TODO_EDITOR = "todos/edit/{todoId}"
+    const val TODO_ID_ARG = "todoId"
+
+    fun todoEditorRoute(todoId: Long): String = "todos/edit/$todoId"
 }
 
 /** The four bottom-bar destinations, in display order. */
