@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalCursorBlinkEnabled
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.SavedStateHandle
@@ -171,6 +173,40 @@ class TodoUiTest {
         compose.onAllNodesWithText("Book flights").assertCountEquals(0)
         compose.onNodeWithContentDescription("Expand Plan trip").performClick()
         compose.onNodeWithText("Book flights").assertIsDisplayed()
+    }
+
+    @Test
+    fun list_dragHandleStartsAfter250ms_andReportsTheDrop() {
+        val today = TodoDates.today()
+        val first = Todo(id = 11L, title = "Alpha", dueDate = today, sortOrder = 0.0)
+        val second = Todo(id = 12L, title = "Beta", dueDate = today, sortOrder = 1.0)
+        var moved: Pair<Long, Long>? = null
+
+        compose.setContent {
+            MaterialTheme {
+                TodosScreen(
+                    todos = listOf(first, second),
+                    onOpenTodo = {},
+                    onToggleCompleted = { _, _ -> },
+                    onReorder = { from, to -> moved = from to to },
+                )
+            }
+        }
+
+        val rowHeight = compose.onNodeWithText("Beta").fetchSemanticsNode().boundsInRoot.top -
+            compose.onNodeWithText("Alpha").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("rows should be laid out", rowHeight > 0f)
+
+        // Hold still past the 250ms timeout, then drag onto the next row. At
+        // the old ~500ms platform default this would be treated as a plain tap.
+        compose.onNodeWithContentDescription("Collapse Alpha").performTouchInput {
+            down(center)
+            move(delayMillis = 260)
+            moveBy(Offset(0f, rowHeight), delayMillis = 16)
+            up()
+        }
+
+        assertEquals(11L to 12L, moved)
     }
 
     @Test
