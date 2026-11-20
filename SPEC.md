@@ -151,6 +151,7 @@
 - Navigate/select any date; completed and incomplete are both shown as **history** on past dates.
 - Completed items still render as gray + strikethrough in the day list.
 - FAB hidden here.
+- **Default State:** When the Calendar tab is opened, it must automatically default to and highlight **today's date**, displaying today's tasks and habits immediately without requiring the user to tap or navigate first.
 
 ### 4.5 Reminders & Notifications
 
@@ -171,6 +172,15 @@
 ### 4.8 Settings & About
 - **Settings**: Theme (Light / Dark / System), default reset schedule for new habits (optional), notification permission status.
 - **About**: app name, version, short description, credits.
+
+### 4.9 Import / Export (Backup & Restore)
+
+- **Export:** User can export their entire database (Habits, To-Dos, Dailies, Subtasks, Reminders, History) to a single JSON file. This file is saved to the device's public Downloads folder (or via the Android Share Sheet).
+- **Import:** User can select a previously exported JSON file. The app parses it and completely replaces (or merges into) the current local database.
+- **UI Location:** Add "Backup & Restore" rows in the **Settings** screen (§4.8).
+- **Edge Cases:** 
+  - Importing invalid/corrupted JSON must show an error toast/snackbar and leave the existing database untouched.
+  - Merging should handle ID collisions safely (e.g., generating new IDs if merging, or strictly overwriting if replacing).
 
 ---
 
@@ -344,6 +354,10 @@ Each step lists **Goal**, **Scope**, **Done when**. Sub-steps (`a`, `b`…) may 
 **Step 13 — Settings & About pages**
 - Goal: Full Settings (theme, notification permission status, optional habit defaults) + About (name, version, description, credits).
 - Done when: Both pages complete and wired from the 3-dot menu.
+
+**Step 13.5 — Import / Export**
+- Goal: Implement JSON serialization of the Room database (using `kotlinx.serialization` or `Gson`). Create the Settings UI buttons for "Export to File" and "Import from File".
+- Done when: Exported JSON contains all app data; importing it successfully restores the database.
 
 **Step 14 — Polish pass**
 - Goal: Motion/transition polish, empty states, loading states, accessibility (content descriptions, 48dp targets, contrast), rounded corners per §5, final visual QA against Mihon/Habitica references.
