@@ -183,6 +183,20 @@
     <string name="notification_channel_reminders_description">Alerts for To-Do and Daily reminders.</string>
     <string name="notification_reminder_body">It\'s time for this reminder.</string>
 
+    <!-- Calendar (SPEC §4.4, Step 12) -->
+    <string name="calendar_previous_month">Previous month</string>
+    <string name="calendar_next_month">Next month</string>
+    <string name="calendar_today">Today</string>
+    <string name="calendar_selected_today">Today · %1$s</string>
+    <string name="calendar_selected_date">%1$s</string>
+    <string name="calendar_empty_day">Nothing planned or recorded for this day.</string>
+    <string name="calendar_section_habits">Habits</string>
+    <string name="calendar_section_tasks">Tasks</string>
+    <string name="calendar_task_todo">To-do</string>
+    <string name="calendar_task_daily">Daily</string>
+    <string name="calendar_task_skipped">Skipped</string>
+    <string name="calendar_task_with_state">%1$s · %2$s</string>
+
     <!-- Settings / About placeholders -->
     <string name="settings_appearance">Appearance</string>
     <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>

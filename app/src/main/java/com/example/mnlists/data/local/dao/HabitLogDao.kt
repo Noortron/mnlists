@@ -15,6 +15,17 @@ interface HabitLogDao {
     @Query("SELECT * FROM habit_logs WHERE habitId = :habitId ORDER BY cycleEnd DESC, id DESC")
     suspend fun getForHabit(habitId: Long): List<HabitLog>
 
+    /** Every habit's history, for the Calendar's per-day counts (Step 12). */
+    @Query("SELECT * FROM habit_logs ORDER BY date ASC, id ASC")
+    fun observeAll(): Flow<List<HabitLog>>
+
+    @Query("SELECT * FROM habit_logs WHERE id = :id")
+    suspend fun getById(id: Long): HabitLog?
+
+    /** Calendar correction of a past cycle's count; the cycle boundaries stay. */
+    @Query("UPDATE habit_logs SET countAtEndOfCycle = :count WHERE id = :id")
+    suspend fun updateCount(id: Long, count: Int)
+
     @Query(
         "SELECT * FROM habit_logs WHERE habitId = :habitId AND date BETWEEN :fromDate AND :toDate " +
             "ORDER BY date ASC, id ASC",

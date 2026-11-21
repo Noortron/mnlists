@@ -48,7 +48,25 @@ class HabitRepository @Inject constructor(
 
     fun observeLogs(habitId: Long): Flow<List<HabitLog>> = habitLogDao.observeForHabit(habitId)
 
+    /** Every log, used by the Calendar to resolve a past day's habit counts. */
+    fun observeAllLogs(): Flow<List<HabitLog>> = habitLogDao.observeAll()
+
     suspend fun getLogs(habitId: Long): List<HabitLog> = habitLogDao.getForHabit(habitId)
+
+    /**
+     * Calendar +/- on a past cycle. The day belongs to a completed cycle, so
+     * only that log changes; the live counter is untouched. Disabled directions
+     * and a missing habit/log are no-ops.
+     */
+    suspend fun adjustLogCount(logId: Long, delta: Int): Int? {
+        val log = habitLogDao.getById(logId) ?: return null
+        val habit = habitDao.getById(log.habitId) ?: return null
+        if (delta > 0 && !habit.allowUp) return log.countAtEndOfCycle
+        if (delta < 0 && !habit.allowDown) return log.countAtEndOfCycle
+        val newCount = (log.countAtEndOfCycle + delta).coerceAtLeast(0)
+        habitLogDao.updateCount(logId, newCount)
+        return newCount
+    }
 
     suspend fun appendLog(log: HabitLog): Long = habitLogDao.insert(log)
 

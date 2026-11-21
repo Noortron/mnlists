@@ -47,6 +47,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mnlists.R
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.ui.calendar.CalendarRoute
 import com.example.mnlists.ui.dailies.DailiesRoute
 import com.example.mnlists.ui.dailies.DailyEditorScreen
 import com.example.mnlists.ui.habits.HabitEditorScreen
@@ -54,7 +55,6 @@ import com.example.mnlists.ui.habits.HabitsRoute
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import com.example.mnlists.ui.navigation.TopLevelDestination
 import com.example.mnlists.ui.screens.AboutScreen
-import com.example.mnlists.ui.screens.CalendarScreen
 import com.example.mnlists.ui.screens.SettingsScreen
 import com.example.mnlists.ui.todos.TodoEditorScreen
 import com.example.mnlists.ui.todos.TodosRoute
@@ -236,7 +236,7 @@ fun MnlistsApp(
             ) {
                 TodoEditorScreen(onDone = { navController.popBackStack() })
             }
-            composable(MnlistsRoutes.CALENDAR) { CalendarScreen() }
+            composable(MnlistsRoutes.CALENDAR) { CalendarRoute() }
             composable(MnlistsRoutes.SETTINGS) {
                 SettingsScreen(
                     themeMode = themeMode,
