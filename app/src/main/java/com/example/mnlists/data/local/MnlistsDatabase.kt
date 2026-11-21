@@ -34,7 +34,7 @@ import com.example.mnlists.data.local.entity.Todo
         Subtask::class,
         Reminder::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -99,6 +99,17 @@ abstract class MnlistsDatabase : RoomDatabase() {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `habits` ADD COLUMN `sortOrder` REAL NOT NULL DEFAULT 0")
+            }
+        }
+
+        /**
+         * v4 stores a Daily reminder's local wall-clock time so it keeps firing
+         * at the same time of day after a time-zone change (Step 11). Pre-v4
+         * rows stay `null`; the scheduler backfills them on first use.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `reminders` ADD COLUMN `timeOfDayMinutes` INTEGER")
             }
         }
     }

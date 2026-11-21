@@ -9,6 +9,10 @@ import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.local.entity.Todo
 import com.example.mnlists.data.model.ParentType
 import com.example.mnlists.data.model.ReminderParentType
+import com.example.mnlists.data.reminder.FakeReminderAlarms
+import com.example.mnlists.data.reminder.ReminderScheduler
+import com.example.mnlists.data.reminder.testReminderScheduler
+import com.example.mnlists.data.repository.DailyRepository
 import com.example.mnlists.data.repository.TodoRepository
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.util.concurrent.Executor
@@ -43,6 +47,9 @@ class TodoFeatureTest {
     private lateinit var context: Context
     private lateinit var database: MnlistsDatabase
     private lateinit var repository: TodoRepository
+    private lateinit var dailyRepository: DailyRepository
+    private lateinit var reminderScheduler: ReminderScheduler
+    private lateinit var alarms: FakeReminderAlarms
 
     @Before
     fun setUp() {
@@ -61,6 +68,15 @@ class TodoFeatureTest {
             subtaskDao = database.subtaskDao(),
             reminderDao = database.reminderDao(),
         )
+        dailyRepository = DailyRepository(
+            database = database,
+            dailyDao = database.dailyDao(),
+            occurrenceDao = database.dailyOccurrenceDao(),
+            subtaskDao = database.subtaskDao(),
+            reminderDao = database.reminderDao(),
+        )
+        alarms = FakeReminderAlarms()
+        reminderScheduler = testReminderScheduler(database, repository, dailyRepository, alarms)
     }
 
     @After
@@ -71,7 +87,7 @@ class TodoFeatureTest {
 
     @Test
     fun editor_requiresOnlyTitle_thenCreatesTodoWithoutDueDate() = runBlocking {
-        val viewModel = TodoEditorViewModel(repository, SavedStateHandle())
+        val viewModel = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
         var saved = false
 
         // A title is still required.
@@ -100,6 +116,7 @@ class TodoFeatureTest {
         )
         val editor = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to id)),
         )
 
@@ -113,7 +130,7 @@ class TodoFeatureTest {
 
     @Test
     fun editor_loadsEdits_andDeletesWithCascade() = runBlocking {
-        val creator = TodoEditorViewModel(repository, SavedStateHandle())
+        val creator = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
         creator.setTitle("Plan trip")
         creator.setDueDate(TodoDates.today())
         creator.save {}
@@ -136,6 +153,7 @@ class TodoFeatureTest {
 
         val editor = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to id)),
         )
 
@@ -250,6 +268,7 @@ class TodoFeatureTest {
         )
         val editor = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
         )
 
@@ -269,6 +288,7 @@ class TodoFeatureTest {
         val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
         val editor = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
         )
 
@@ -296,7 +316,7 @@ class TodoFeatureTest {
 
     @Test
     fun editor_addingFirstSubtask_commitsNewParent() = runBlocking {
-        val editor = TodoEditorViewModel(repository, SavedStateHandle())
+        val editor = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
         editor.setTitle("Plan trip")
         editor.setNote("  in spring ")
 
@@ -310,6 +330,50 @@ class TodoFeatureTest {
         assertNull(parent.dueDate)
         assertEquals(1, repository.getSubtasks(parent.id).size)
         assertTrue("the parent now exists, so the editor is in edit mode", editor.isEditing)
+    }
+
+    @Test
+    fun editor_addsUpdatesAndDeletesTodoReminder() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Renew passport", sortOrder = 1.0))
+        val editor = TodoEditorViewModel(
+            repository,
+            reminderScheduler,
+            SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
+        )
+        val day = TodoDates.today()
+
+        editor.addReminder(day + 1, 8 * 60)
+
+        val reminder = editor.reminders.single()
+        assertEquals(ReminderParentType.TODO, reminder.parentType)
+        assertEquals(todoId, reminder.parentId)
+        assertEquals(8 * 60, reminder.timeOfDayMinutes)
+        assertEquals(reminder.triggerAt, alarms.scheduled[reminder.notificationId])
+
+        editor.updateReminder(reminder.id, day + 2, 10 * 60)
+
+        val updated = editor.reminders.single()
+        assertEquals(10 * 60, updated.timeOfDayMinutes)
+        assertTrue(updated.triggerAt > reminder.triggerAt)
+        assertEquals(updated.triggerAt, alarms.scheduled[updated.notificationId])
+
+        editor.deleteReminder(updated.id)
+
+        assertTrue(editor.reminders.isEmpty())
+        assertTrue(repository.observeTodos().first().isNotEmpty())
+        assertTrue(alarms.cancelled.contains(updated.notificationId))
+    }
+
+    @Test
+    fun editor_reminderNeedsATitleAndNeverLeaksIntoTheDatabase() = runBlocking {
+        val editor = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
+
+        editor.addReminder(TodoDates.today() + 1, 9 * 60)
+
+        assertTrue(editor.uiState.titleError)
+        assertTrue(editor.reminders.isEmpty())
+        assertTrue(database.reminderDao().getAll().isEmpty())
+        assertTrue(alarms.scheduled.isEmpty())
     }
 
     @Test

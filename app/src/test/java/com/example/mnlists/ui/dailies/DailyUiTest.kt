@@ -1,5 +1,6 @@
 package com.example.mnlists.ui.dailies
 
+import android.Manifest
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,7 +29,12 @@ import com.example.mnlists.data.local.entity.Daily
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.model.ParentType
 import com.example.mnlists.data.model.RepeatType
+import com.example.mnlists.data.reminder.ReminderScheduler
+import com.example.mnlists.data.reminder.testReminderScheduler
 import com.example.mnlists.data.repository.DailyRepository
+import com.example.mnlists.data.repository.TodoRepository
+import com.example.mnlists.ui.components.REMINDER_ADD_TAG
+import com.example.mnlists.ui.components.REMINDER_CONFIRM_TAG
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.time.DayOfWeek
 import java.util.concurrent.Executor
@@ -46,6 +52,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -63,6 +70,8 @@ class DailyUiTest {
     private lateinit var database: MnlistsDatabase
     private lateinit var repository: DailyRepository
     private lateinit var manager: DailyOccurrenceManager
+    private lateinit var todoRepository: TodoRepository
+    private lateinit var reminderScheduler: ReminderScheduler
 
     private val day: Long = DailyDates.today()
 
@@ -82,6 +91,15 @@ class DailyUiTest {
             reminderDao = database.reminderDao(),
         )
         manager = DailyOccurrenceManager(database)
+        todoRepository = TodoRepository(
+            database = database,
+            todoDao = database.todoDao(),
+            subtaskDao = database.subtaskDao(),
+            reminderDao = database.reminderDao(),
+        )
+        reminderScheduler = testReminderScheduler(database, todoRepository, repository)
+        shadowOf(RuntimeEnvironment.getApplication())
+            .grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     @After
@@ -97,7 +115,7 @@ class DailyUiTest {
         val doneOccurrence = createDailyWithOccurrence("Finished reading")
         repository.setOccurrenceCompleted(doneOccurrence, true)
 
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.setToday(day)
         var openedSeries: Long? = null
 
@@ -148,7 +166,7 @@ class DailyUiTest {
     @Test
     fun list_subtaskAddAndCheck_cascadesToOccurrence_andDragHandleCollapses() = runBlocking {
         val occurrenceId = createDailyWithOccurrence("Morning pages")
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.setToday(day)
 
         compose.setContent {
@@ -200,7 +218,7 @@ class DailyUiTest {
         )
         repository.setOccurrenceCompleted(occurrenceId, true)
 
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.setToday(day)
         compose.setContent {
             MaterialTheme {
@@ -221,7 +239,7 @@ class DailyUiTest {
 
     @Test
     fun seriesEditor_createsWeeklySeries() = runBlocking {
-        val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
         var done = false
         compose.setContent {
             MaterialTheme {
@@ -276,6 +294,7 @@ class DailyUiTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
         )
         var done = false
@@ -305,6 +324,7 @@ class DailyUiTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
         )
         compose.setContent {
@@ -357,6 +377,7 @@ class DailyUiTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
         )
         var deletedDone = false
@@ -393,6 +414,7 @@ class DailyUiTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_OCCURRENCE_ID_ARG to occurrenceId)),
         )
         assertEquals(DailyEditorMode.OCCURRENCE, editor.mode)
@@ -421,6 +443,39 @@ class DailyUiTest {
         compose.onNodeWithText("OK").performScrollTo().performClick()
         assertTrue(done)
         Unit
+    }
+
+    @Test
+    fun seriesEditor_addsAndDeletesADailyReminder() = runBlocking {
+        val dailyId = repository.createDaily(Daily(title = "Morning pages", startDate = day))
+        val editor = DailyEditorViewModel(
+            repository,
+            manager,
+            reminderScheduler,
+            SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
+        )
+        compose.setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalCursorBlinkEnabled provides false) {
+                    DailyEditorScreen(onDone = {}, viewModel = editor)
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(REMINDER_ADD_TAG).performScrollTo().performClick()
+        compose.onNodeWithText("New reminder").assertIsDisplayed()
+        compose.onNodeWithTag(REMINDER_CONFIRM_TAG).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, editor.reminders.size)
+
+        compose.onNodeWithContentDescription("Delete reminder").performScrollTo().performClick()
+        compose.onNodeWithText("Delete reminder?").assertIsDisplayed()
+        compose.onNodeWithText("Delete").performClick()
+        compose.waitForIdle()
+
+        assertTrue(editor.reminders.isEmpty())
     }
 
     private suspend fun createDailyWithOccurrence(title: String): Long {

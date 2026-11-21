@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.mnlists.data.daily.DailyOccurrenceManager
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.model.ParentType
+import com.example.mnlists.data.model.ReminderParentType
+import com.example.mnlists.data.reminder.ReminderScheduler
 import com.example.mnlists.data.repository.DailyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,7 @@ import kotlinx.coroutines.launch
 class DailiesViewModel @Inject constructor(
     private val repository: DailyRepository,
     private val occurrenceManager: DailyOccurrenceManager,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     /**
@@ -83,8 +87,31 @@ class DailiesViewModel @Inject constructor(
     }
 
     fun setSkipped(occurrenceId: Long, skipped: Boolean) {
+        setSkippedAt(occurrenceId, skipped, System.currentTimeMillis(), ZoneId.systemDefault())
+    }
+
+    /**
+     * Skips/unskips one day and re-arms the series' reminders. A skipped
+     * occurrence must not notify (SPEC §9), and unskipping should restore the
+     * same day's reminder rather than waiting for the next one.
+     */
+    internal fun setSkippedAt(
+        occurrenceId: Long,
+        skipped: Boolean,
+        now: Long,
+        zone: ZoneId,
+    ) {
         viewModelScope.launch {
+            val occurrence = repository.getOccurrence(occurrenceId)
             repository.setOccurrenceSkipped(occurrenceId, skipped)
+            occurrence?.let {
+                reminderScheduler.rescheduleForParent(
+                    ReminderParentType.DAILY,
+                    it.dailyId,
+                    now,
+                    zone,
+                )
+            }
             refreshSubtasks()
         }
     }

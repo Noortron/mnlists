@@ -1,5 +1,6 @@
 package com.example.mnlists.ui.todos
 
+import android.Manifest
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -26,7 +27,12 @@ import com.example.mnlists.data.local.MnlistsDatabase
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.local.entity.Todo
 import com.example.mnlists.data.model.ParentType
+import com.example.mnlists.data.reminder.ReminderScheduler
+import com.example.mnlists.data.reminder.testReminderScheduler
+import com.example.mnlists.data.repository.DailyRepository
 import com.example.mnlists.data.repository.TodoRepository
+import com.example.mnlists.ui.components.REMINDER_ADD_TAG
+import com.example.mnlists.ui.components.REMINDER_CONFIRM_TAG
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.util.concurrent.Executor
 import kotlinx.coroutines.flow.first
@@ -43,6 +49,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -60,6 +67,8 @@ class TodoUiTest {
     private lateinit var context: Context
     private lateinit var database: MnlistsDatabase
     private lateinit var repository: TodoRepository
+    private lateinit var dailyRepository: DailyRepository
+    private lateinit var reminderScheduler: ReminderScheduler
 
     @Before
     fun setUp() {
@@ -75,6 +84,16 @@ class TodoUiTest {
             subtaskDao = database.subtaskDao(),
             reminderDao = database.reminderDao(),
         )
+        dailyRepository = DailyRepository(
+            database = database,
+            dailyDao = database.dailyDao(),
+            occurrenceDao = database.dailyOccurrenceDao(),
+            subtaskDao = database.subtaskDao(),
+            reminderDao = database.reminderDao(),
+        )
+        reminderScheduler = testReminderScheduler(database, repository, dailyRepository)
+        shadowOf(RuntimeEnvironment.getApplication())
+            .grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     @After
@@ -233,7 +252,7 @@ class TodoUiTest {
 
     @Test
     fun editor_savesWithoutDueDate_andClearingADateStaysEmpty() = runBlocking {
-        val viewModel = TodoEditorViewModel(repository, SavedStateHandle())
+        val viewModel = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
         var done = false
 
         compose.setContent {
@@ -273,6 +292,7 @@ class TodoUiTest {
         )
         val viewModel = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
         )
         var done = false
@@ -302,7 +322,7 @@ class TodoUiTest {
 
     @Test
     fun editor_fullDatePicker_confirmingStoresThePickedDay() = runBlocking {
-        val viewModel = TodoEditorViewModel(repository, SavedStateHandle())
+        val viewModel = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
 
         compose.setContent {
             MaterialTheme {
@@ -324,6 +344,7 @@ class TodoUiTest {
         val todoId = repository.createTodo(Todo(title = "Plan trip", sortOrder = 1.0))
         val viewModel = TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
         )
         applyEditor(viewModel)
@@ -473,6 +494,28 @@ class TodoUiTest {
         Unit
     }
 
+    @Test
+    fun editor_addsAndDeletesAReminder() = runBlocking {
+        val todoId = repository.createTodo(Todo(title = "Water plants", sortOrder = 1.0))
+        val viewModel = editorFor(todoId)
+        applyEditor(viewModel)
+
+        compose.onNodeWithTag(REMINDER_ADD_TAG).performScrollTo().performClick()
+        compose.onNodeWithText("New reminder").assertIsDisplayed()
+        compose.onNodeWithTag(REMINDER_CONFIRM_TAG).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, viewModel.reminders.size)
+        compose.onNodeWithText("Reminders").performScrollTo().assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Delete reminder").performScrollTo().performClick()
+        compose.onNodeWithText("Delete reminder?").assertIsDisplayed()
+        compose.onNodeWithText("Delete").performClick()
+        compose.waitForIdle()
+
+        assertTrue(viewModel.reminders.isEmpty())
+    }
+
     private fun applyEditor(viewModel: TodoEditorViewModel) {
         compose.setContent {
             MaterialTheme {
@@ -488,6 +531,7 @@ class TodoUiTest {
     private fun editorFor(todoId: Long): TodoEditorViewModel =
         TodoEditorViewModel(
             repository,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.TODO_ID_ARG to todoId)),
         )
 

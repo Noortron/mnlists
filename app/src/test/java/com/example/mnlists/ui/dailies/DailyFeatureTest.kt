@@ -8,10 +8,18 @@ import com.example.mnlists.data.local.MnlistsDatabase
 import com.example.mnlists.data.local.entity.Daily
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.model.ParentType
+import com.example.mnlists.data.model.ReminderParentType
 import com.example.mnlists.data.model.RepeatType
+import com.example.mnlists.data.reminder.FakeReminderAlarms
+import com.example.mnlists.data.reminder.ReminderScheduler
+import com.example.mnlists.data.reminder.testReminderScheduler
 import com.example.mnlists.data.repository.DailyRepository
+import com.example.mnlists.data.repository.TodoRepository
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.util.concurrent.Executor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -44,6 +52,9 @@ class DailyFeatureTest {
     private lateinit var database: MnlistsDatabase
     private lateinit var repository: DailyRepository
     private lateinit var manager: DailyOccurrenceManager
+    private lateinit var todoRepository: TodoRepository
+    private lateinit var reminderScheduler: ReminderScheduler
+    private lateinit var alarms: FakeReminderAlarms
 
     /** The real "today" keeps editor generation aligned with the test data. */
     private val day: Long = DailyDates.today()
@@ -65,6 +76,14 @@ class DailyFeatureTest {
             reminderDao = database.reminderDao(),
         )
         manager = DailyOccurrenceManager(database)
+        todoRepository = TodoRepository(
+            database = database,
+            todoDao = database.todoDao(),
+            subtaskDao = database.subtaskDao(),
+            reminderDao = database.reminderDao(),
+        )
+        alarms = FakeReminderAlarms()
+        reminderScheduler = testReminderScheduler(database, todoRepository, repository, alarms)
     }
 
     @After
@@ -77,7 +96,7 @@ class DailyFeatureTest {
     fun tabEntry_generatesTodaysOccurrence_andIsIdempotent() = runBlocking {
         createDaily("Morning pages")
 
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.generateTodayOccurrences(day)
 
         val occurrences = repository.getOccurrencesForDate(day)
@@ -92,7 +111,7 @@ class DailyFeatureTest {
 
     @Test
     fun seriesEditor_createsAndEditsWholeSeries_withoutTouchingGeneratedOccurrences() = runBlocking {
-        val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
         assertEquals(DailyEditorMode.SERIES, editor.mode)
         assertEquals("1", editor.uiState.everyN)
 
@@ -120,6 +139,7 @@ class DailyFeatureTest {
         val edit = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to created.id)),
         )
         assertEquals("Morning pages", edit.uiState.title)
@@ -137,7 +157,7 @@ class DailyFeatureTest {
 
     @Test
     fun seriesEditor_newSeriesStagesSubtasksUntilSave() = runBlocking {
-        val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
         editor.setTitle("Morning pages")
         editor.setStartDate(day)
 
@@ -169,7 +189,7 @@ class DailyFeatureTest {
 
     @Test
     fun seriesEditor_validatesTitleAndEveryN() = runBlocking {
-        val editor = DailyEditorViewModel(repository, manager, SavedStateHandle())
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
         editor.save {}
         assertTrue(editor.uiState.titleError)
         assertTrue("blank title fails before an N check", repository.observeDailies().first().isEmpty())
@@ -190,7 +210,7 @@ class DailyFeatureTest {
         val second = repository.ensureOccurrence(secondSeries, day, sortOrder = 1.0)!!.id
         val third = repository.ensureOccurrence(thirdSeries, day, sortOrder = 2.0)!!.id
 
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.setToday(day)
         assertEquals(3, viewModel.entries.first { it.isNotEmpty() }.size)
 
@@ -208,7 +228,7 @@ class DailyFeatureTest {
         val occurrence = repository.getOccurrencesForDate(day).single()
         val tomorrow = repository.ensureOccurrence(dailyId, day + 1)!!
 
-        val viewModel = DailiesViewModel(repository, manager)
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
         viewModel.setSkipped(occurrence.id, true)
 
         assertTrue(repository.getOccurrence(occurrence.id)!!.isSkipped)
@@ -218,6 +238,41 @@ class DailyFeatureTest {
 
         viewModel.setSkipped(occurrence.id, false)
         assertFalse(repository.getOccurrence(occurrence.id)!!.isSkipped)
+    }
+
+    @Test
+    fun skip_reschedulesTheSeriesReminder_andUnskipReArmsIt() = runBlocking {
+        val utc = ZoneId.of("UTC")
+        val now = LocalDate.ofEpochDay(day).atTime(LocalTime.of(8, 0))
+            .atZone(utc).toInstant().toEpochMilli()
+        val nine = LocalDate.ofEpochDay(day).atTime(LocalTime.of(9, 0))
+            .atZone(utc).toInstant().toEpochMilli()
+        val nextNine = LocalDate.ofEpochDay(day + 1).atTime(LocalTime.of(9, 0))
+            .atZone(utc).toInstant().toEpochMilli()
+
+        val dailyId = createDaily("Morning pages")
+        manager.generateDueOccurrences(today = day)
+        val occurrence = repository.getOccurrencesForDate(day).single()
+        val reminder = reminderScheduler.create(
+            ReminderParentType.DAILY,
+            dailyId,
+            day,
+            9 * 60,
+            now = now,
+            zone = utc,
+        )!!
+        assertEquals(nine, reminder.triggerAt)
+
+        val viewModel = DailiesViewModel(repository, manager, reminderScheduler)
+        viewModel.setSkippedAt(occurrence.id, true, now, utc)
+
+        assertEquals(nextNine, database.reminderDao().getById(reminder.id)!!.triggerAt)
+        assertEquals(nextNine, alarms.scheduled[reminder.notificationId])
+
+        viewModel.setSkippedAt(occurrence.id, false, now, utc)
+
+        assertEquals(nine, database.reminderDao().getById(reminder.id)!!.triggerAt)
+        assertEquals(nine, alarms.scheduled[reminder.notificationId])
     }
 
     @Test
@@ -255,6 +310,7 @@ class DailyFeatureTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_OCCURRENCE_ID_ARG to occurrenceId)),
         )
 
@@ -291,6 +347,57 @@ class DailyFeatureTest {
     }
 
     @Test
+    fun seriesEditor_stagesThenCommitsReminder_andUpdatesDeletesIt() = runBlocking {
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
+        editor.setTitle("Morning pages")
+        editor.setStartDate(day)
+        editor.addReminder(day, 7 * 60)
+
+        val draft = editor.reminders.single()
+        assertTrue("staged reminders use negative ids", draft.id < 0)
+        assertTrue("nothing is persisted before Save", database.reminderDao().getAll().isEmpty())
+        assertTrue(alarms.scheduled.isEmpty())
+
+        editor.save {}
+
+        val daily = repository.observeDailies().first().single()
+        val stored = editor.reminders.single()
+        assertTrue(stored.id > 0)
+        assertEquals(ReminderParentType.DAILY, stored.parentType)
+        assertEquals(daily.id, stored.parentId)
+        assertEquals(7 * 60, stored.timeOfDayMinutes)
+        assertEquals(stored.triggerAt, alarms.scheduled[stored.notificationId])
+
+        editor.updateReminder(stored.id, day, 8 * 60)
+
+        val updated = editor.reminders.single()
+        assertEquals(8 * 60, updated.timeOfDayMinutes)
+        assertEquals(updated.triggerAt, alarms.scheduled[updated.notificationId])
+
+        editor.deleteReminder(updated.id)
+
+        assertTrue(editor.reminders.isEmpty())
+        assertTrue(alarms.cancelled.contains(updated.notificationId))
+    }
+
+    @Test
+    fun occurrenceEditor_neverShowsSeriesReminders() = runBlocking {
+        val dailyId = createDaily("Morning pages")
+        reminderScheduler.create(ReminderParentType.DAILY, dailyId, day, 9 * 60)
+        val occurrenceId = repository.ensureOccurrence(dailyId, day)!!.id
+
+        val editor = DailyEditorViewModel(
+            repository,
+            manager,
+            reminderScheduler,
+            SavedStateHandle(mapOf(MnlistsRoutes.DAILY_OCCURRENCE_ID_ARG to occurrenceId)),
+        )
+
+        assertEquals(DailyEditorMode.OCCURRENCE, editor.mode)
+        assertTrue(editor.reminders.isEmpty())
+    }
+
+    @Test
     fun seriesDeletion_keepsPastOccurrences_andDropsFutureOnes() = runBlocking {
         val dailyId = createDaily("Morning pages")
         val past = repository.ensureOccurrence(dailyId, day - 1)!!.id
@@ -299,6 +406,7 @@ class DailyFeatureTest {
         val editor = DailyEditorViewModel(
             repository,
             manager,
+            reminderScheduler,
             SavedStateHandle(mapOf(MnlistsRoutes.DAILY_ID_ARG to dailyId)),
         )
         var deleted = false

@@ -8,7 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.local.entity.Todo
+import com.example.mnlists.data.local.entity.Reminder
 import com.example.mnlists.data.model.ParentType
+import com.example.mnlists.data.model.ReminderParentType
+import com.example.mnlists.data.reminder.ReminderScheduler
 import com.example.mnlists.data.repository.TodoRepository
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +42,7 @@ data class TodoEditorUiState(
 @HiltViewModel
 class TodoEditorViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
+    private val reminderScheduler: ReminderScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -49,6 +53,10 @@ class TodoEditorViewModel @Inject constructor(
 
     /** Live subtask list, in manual order (completed children stay in place). */
     var subtasks by mutableStateOf<List<Subtask>>(emptyList())
+        private set
+
+    /** Pending one-off reminders attached to this to-do (Step 11). */
+    var reminders by mutableStateOf<List<Reminder>>(emptyList())
         private set
 
     val isEditing: Boolean get() = todoId > 0L
@@ -72,6 +80,7 @@ class TodoEditorViewModel @Inject constructor(
                 )
             }
             refreshSubtasks()
+            refreshReminders()
         }
     }
 
@@ -220,9 +229,43 @@ class TodoEditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Reminders are persisted immediately, like subtasks. A brand-new to-do is
+     * committed first so the reminder has a parent; a missing title blocks the
+     * add and flags the title field.
+     */
+    fun addReminder(epochDay: Long, minutesOfDay: Int) {
+        viewModelScope.launch {
+            val parentId = ensureParent() ?: return@launch
+            reminderScheduler.create(
+                parentType = ReminderParentType.TODO,
+                parentId = parentId,
+                epochDay = epochDay,
+                minutesOfDay = minutesOfDay,
+            )
+            refreshReminders()
+        }
+    }
+
+    fun updateReminder(reminderId: Long, epochDay: Long, minutesOfDay: Int) {
+        viewModelScope.launch {
+            reminderScheduler.update(reminderId, epochDay, minutesOfDay)
+            refreshReminders()
+        }
+    }
+
+    fun deleteReminder(reminderId: Long) {
+        viewModelScope.launch {
+            reminderScheduler.delete(reminderId)
+            refreshReminders()
+        }
+    }
+
     fun delete(onDeleted: () -> Unit) {
         if (todoId <= 0L) return
         viewModelScope.launch {
+            // Cancel alarms before the repository cascade removes the rows.
+            reminderScheduler.deleteForParent(ReminderParentType.TODO, todoId)
             todoRepository.deleteTodo(todoId)
             onDeleted()
         }
@@ -274,6 +317,14 @@ class TodoEditorViewModel @Inject constructor(
         val parent = todoRepository.getTodo(todoId)
         if (parent != null && parent.isCompleted != uiState.isCompleted) {
             uiState = uiState.copy(isCompleted = parent.isCompleted)
+        }
+    }
+
+    private suspend fun refreshReminders() {
+        reminders = if (todoId <= 0L) {
+            emptyList()
+        } else {
+            reminderScheduler.getForParent(ReminderParentType.TODO, todoId)
         }
     }
 }

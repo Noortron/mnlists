@@ -9,6 +9,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.example.mnlists.data.daily.DailyOccurrenceManager
+import com.example.mnlists.data.reminder.ReminderNotifications
+import com.example.mnlists.data.reminder.ReminderScheduler
 import com.example.mnlists.data.reset.HabitResetManager
 import com.example.mnlists.ui.MnlistsApp
 import com.example.mnlists.ui.settings.SettingsViewModel
@@ -30,14 +32,22 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var dailyOccurrenceManager: DailyOccurrenceManager
 
+    @Inject
+    lateinit var reminderScheduler: ReminderScheduler
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // The reminders channel is safe to (re)create on every launch.
+        ReminderNotifications.ensureChannel(this)
 
         // On-open checks (SPEC §8); both are idempotent. Daily generation also
         // backfills dates missed while the app was closed (SPEC §9, Step 8).
         lifecycleScope.launch { habitResetManager.applyDueResets() }
         lifecycleScope.launch { dailyOccurrenceManager.generateDueOccurrences() }
+        // Repairs any alarms that a reboot / zone change could not (Step 11).
+        lifecycleScope.launch { reminderScheduler.rescheduleAll() }
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()

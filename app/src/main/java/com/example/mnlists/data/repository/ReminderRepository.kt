@@ -30,6 +30,8 @@ class ReminderRepository @Inject constructor(
     suspend fun getByNotificationId(notificationId: Int): Reminder? =
         reminderDao.getByNotificationId(notificationId)
 
+    suspend fun getById(reminderId: Long): Reminder? = reminderDao.getById(reminderId)
+
     suspend fun add(reminder: Reminder): Long = reminderDao.insert(reminder)
 
     suspend fun addAll(reminders: List<Reminder>) = reminderDao.insertAll(reminders)

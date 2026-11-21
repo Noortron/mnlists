@@ -33,6 +33,9 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE notificationId = :notificationId")
     suspend fun getByNotificationId(notificationId: Int): Reminder?
 
+    @Query("SELECT * FROM reminders WHERE id = :id")
+    suspend fun getById(id: Long): Reminder?
+
     @Query("SELECT COALESCE(MAX(notificationId), 1000) FROM reminders")
     suspend fun maxNotificationId(): Int
 

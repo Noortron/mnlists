@@ -159,6 +159,30 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_ok">OK</string>
 
+    <!-- Reminders & notifications (SPEC §4.5, Step 11) -->
+    <string name="reminder_section">Reminders</string>
+    <string name="reminder_empty">No reminders yet.</string>
+    <string name="reminder_add">Add reminder</string>
+    <string name="reminder_new_title">New reminder</string>
+    <string name="reminder_edit_title">Edit reminder</string>
+    <string name="reminder_date_label">Date</string>
+    <string name="reminder_time_label">Time</string>
+    <string name="reminder_today">Today</string>
+    <string name="reminder_tomorrow">Tomorrow</string>
+    <string name="reminder_daily_support">Repeats at this time on every scheduled day.</string>
+    <string name="reminder_todo_support">Fires once, on the chosen date and time.</string>
+    <string name="reminder_set_confirm">Set reminder</string>
+    <string name="reminder_save_confirm">Save reminder</string>
+    <string name="reminder_daily_value">Every scheduled day · %1$s</string>
+    <string name="reminder_delete_title">Delete reminder?</string>
+    <string name="reminder_delete_body">This reminder will not notify you again.</string>
+    <string name="reminder_delete_description">Delete reminder</string>
+    <string name="reminder_edit_description">Edit reminder</string>
+    <string name="reminder_permission_hint">Notifications are turned off. Allow them to see this reminder when it fires.</string>
+    <string name="notification_channel_reminders">Reminders</string>
+    <string name="notification_channel_reminders_description">Alerts for To-Do and Daily reminders.</string>
+    <string name="notification_reminder_body">It\'s time for this reminder.</string>
+
     <!-- Settings / About placeholders -->
     <string name="settings_appearance">Appearance</string>
     <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>

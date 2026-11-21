@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.mnlists.R
 import com.example.mnlists.data.local.entity.Subtask
+import com.example.mnlists.ui.components.ReminderSection
 
 /**
  * Create/edit page for a to-do (SPEC §4.2/§4.3).
@@ -81,6 +82,7 @@ fun TodoEditorScreen(
 ) {
     val state = viewModel.uiState
     val subtasks = viewModel.subtasks
+    val reminders = viewModel.reminders
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showSubtaskEditor by remember { mutableStateOf(false) }
@@ -182,6 +184,16 @@ fun TodoEditorScreen(
                         onClick = { viewModel.setDueDate(null) },
                     )
                 }
+
+                Spacer(Modifier.height(24.dp))
+
+                ReminderSection(
+                    reminders = reminders,
+                    allowDate = true,
+                    onAdd = viewModel::addReminder,
+                    onUpdate = viewModel::updateReminder,
+                    onDelete = viewModel::deleteReminder,
+                )
 
                 Spacer(Modifier.height(24.dp))
 

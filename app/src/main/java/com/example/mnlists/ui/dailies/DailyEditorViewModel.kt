@@ -8,13 +8,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mnlists.data.daily.DailyOccurrenceManager
 import com.example.mnlists.data.local.entity.Daily
+import com.example.mnlists.data.local.entity.Reminder
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.model.ParentType
+import com.example.mnlists.data.model.ReminderParentType
 import com.example.mnlists.data.model.RepeatType
+import com.example.mnlists.data.reminder.ReminderScheduler
+import com.example.mnlists.data.reminder.ReminderTimeEngine
 import com.example.mnlists.data.repository.DailyRepository
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.DayOfWeek
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -54,6 +59,7 @@ data class DailyEditorUiState(
 class DailyEditorViewModel @Inject constructor(
     private val repository: DailyRepository,
     private val occurrenceManager: DailyOccurrenceManager,
+    private val reminderScheduler: ReminderScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -73,8 +79,19 @@ class DailyEditorViewModel @Inject constructor(
     var subtasks by mutableStateOf<List<Subtask>>(emptyList())
         private set
 
+    /** Series-level reminders; hidden in the one-occurrence editor (Step 11). */
+    var reminders by mutableStateOf<List<Reminder>>(emptyList())
+        private set
+
     /** Occurrence that owns the subtasks shown in this editor. */
     private var subtaskOccurrenceId: Long = occurrenceId
+
+    /**
+     * Reminders entered before a brand-new series is saved. They use negative
+     * ids and are committed (and scheduled) once [`save`] creates the Daily.
+     */
+    private val draftReminders = mutableListOf<Reminder>()
+    private var nextDraftReminderId = -1L
 
     /**
      * Subtasks entered before a brand-new series has been saved. They use
@@ -109,6 +126,7 @@ class DailyEditorViewModel @Inject constructor(
             }
             resolveSubtaskOccurrence()
             refreshSubtasks()
+            refreshReminders()
         }
     }
 
@@ -215,7 +233,13 @@ class DailyEditorViewModel @Inject constructor(
             // first occurrence now that a real dailyId exists.
             resolveSubtaskOccurrence()
             commitDraftSubtasks()
+            commitDraftReminders()
+            // Recurrence/start may have changed: recompute future alarms.
+            if (mode == DailyEditorMode.SERIES && dailyId > 0L) {
+                reminderScheduler.rescheduleForParent(ReminderParentType.DAILY, dailyId)
+            }
             refreshSubtasks()
+            refreshReminders()
             uiState = uiState.copy(isSaving = false)
             onSaved()
         }
@@ -233,10 +257,26 @@ class DailyEditorViewModel @Inject constructor(
 
     /** Occurrence only: skip/unskip never touches the series or siblings. */
     fun setSkipped(skipped: Boolean) {
+        setSkippedAt(skipped, System.currentTimeMillis(), ZoneId.systemDefault())
+    }
+
+    /**
+     * Skip/unskip plus a reminder repair: a series reminder must jump over a
+     * skipped day and be re-armed when that day is unskipped (SPEC §9).
+     */
+    internal fun setSkippedAt(skipped: Boolean, now: Long, zone: ZoneId) {
         if (mode != DailyEditorMode.OCCURRENCE) return
         viewModelScope.launch {
             repository.setOccurrenceSkipped(occurrenceId, skipped)
             uiState = uiState.copy(isSkipped = skipped)
+            if (dailyId > 0L) {
+                reminderScheduler.rescheduleForParent(
+                    ReminderParentType.DAILY,
+                    dailyId,
+                    now,
+                    zone,
+                )
+            }
             refreshSubtasks()
         }
     }
@@ -350,11 +390,77 @@ class DailyEditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Series reminders repeat at the chosen time on every scheduled day. A
+     * brand-new series stages them until Save; an existing one is scheduled
+     * immediately. The occurrence editor never manages them (SPEC §9).
+     */
+    fun addReminder(epochDay: Long, minutesOfDay: Int) {
+        if (mode != DailyEditorMode.SERIES) return
+        viewModelScope.launch {
+            if (dailyId == 0L) {
+                draftReminders.add(
+                    Reminder(
+                        id = nextDraftReminderId--,
+                        parentType = ReminderParentType.DAILY,
+                        parentId = 0L,
+                        triggerAt = ReminderTimeEngine.todoTrigger(epochDay, minutesOfDay),
+                        notificationId = 0,
+                        timeOfDayMinutes = minutesOfDay,
+                    ),
+                )
+                refreshReminders()
+            } else {
+                reminderScheduler.create(
+                    parentType = ReminderParentType.DAILY,
+                    parentId = dailyId,
+                    epochDay = epochDay,
+                    minutesOfDay = minutesOfDay,
+                )
+                refreshReminders()
+            }
+        }
+    }
+
+    fun updateReminder(reminderId: Long, epochDay: Long, minutesOfDay: Int) {
+        if (mode != DailyEditorMode.SERIES) return
+        viewModelScope.launch {
+            if (isDraft(reminderId)) {
+                val index = draftReminders.indexOfFirst { it.id == reminderId }
+                if (index >= 0) {
+                    draftReminders[index] = draftReminders[index].copy(
+                        triggerAt = ReminderTimeEngine.todoTrigger(epochDay, minutesOfDay),
+                        timeOfDayMinutes = minutesOfDay,
+                    )
+                    reminders = draftReminders.toList()
+                }
+                return@launch
+            }
+            reminderScheduler.update(reminderId, epochDay, minutesOfDay)
+            refreshReminders()
+        }
+    }
+
+    fun deleteReminder(reminderId: Long) {
+        if (mode != DailyEditorMode.SERIES) return
+        viewModelScope.launch {
+            if (isDraft(reminderId)) {
+                draftReminders.removeAll { it.id == reminderId }
+                reminders = draftReminders.toList()
+                return@launch
+            }
+            reminderScheduler.delete(reminderId)
+            refreshReminders()
+        }
+    }
+
     /** Series delete keeps past occurrences; occurrence delete is one day only. */
     fun delete(onDeleted: () -> Unit) {
         if (!isEditing) return
         viewModelScope.launch {
             if (mode == DailyEditorMode.SERIES) {
+                // Cancel alarms before the repository cascade removes the rows.
+                reminderScheduler.deleteForParent(ReminderParentType.DAILY, dailyId)
                 repository.deleteSeries(dailyId, DailyDates.today())
             } else {
                 repository.deleteOccurrence(occurrenceId)
@@ -382,6 +488,29 @@ class DailyEditorViewModel @Inject constructor(
             repository.addSubtask(draft.copy(id = 0L, parentId = subtaskOccurrenceId))
         }
         draftSubtasks.clear()
+    }
+
+    /** Schedules staged reminders once the series exists. */
+    private suspend fun commitDraftReminders() {
+        if (draftReminders.isEmpty() || dailyId == 0L) return
+        draftReminders.forEach { draft ->
+            reminderScheduler.create(
+                parentType = ReminderParentType.DAILY,
+                parentId = dailyId,
+                epochDay = ReminderTimeEngine.epochDayOf(draft.triggerAt),
+                minutesOfDay = draft.timeOfDayMinutes
+                    ?: ReminderTimeEngine.minutesOfDay(draft.triggerAt),
+            )
+        }
+        draftReminders.clear()
+    }
+
+    private suspend fun refreshReminders() {
+        reminders = when {
+            mode != DailyEditorMode.SERIES -> emptyList()
+            dailyId > 0L -> reminderScheduler.getForParent(ReminderParentType.DAILY, dailyId)
+            else -> draftReminders.toList()
+        }
     }
 
     private suspend fun refreshSubtasks() {

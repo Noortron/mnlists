@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.mnlists.R
 import com.example.mnlists.data.model.RepeatType
+import com.example.mnlists.ui.components.ReminderSection
 import java.time.DayOfWeek
 import java.time.format.TextStyle as DayTextStyle
 import java.util.Locale
@@ -355,6 +356,18 @@ private fun SeriesFields(
             }
         }
     }
+
+    Spacer(Modifier.height(24.dp))
+
+    // A Daily reminder repeats at a wall-clock time on every occurrence, so
+    // only the time is edited here (Step 11).
+    ReminderSection(
+        reminders = viewModel.reminders,
+        allowDate = false,
+        onAdd = viewModel::addReminder,
+        onUpdate = viewModel::updateReminder,
+        onDelete = viewModel::deleteReminder,
+    )
 
     Spacer(Modifier.height(24.dp))
 
