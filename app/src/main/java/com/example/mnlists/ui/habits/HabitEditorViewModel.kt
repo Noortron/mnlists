@@ -9,10 +9,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.mnlists.data.local.entity.Habit
 import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.repository.HabitRepository
+import com.example.mnlists.data.settings.HabitDefaults
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.DayOfWeek
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Editable form state for creating or editing a single habit. */
@@ -39,10 +41,14 @@ data class HabitEditorUiState(
 class HabitEditorViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     savedStateHandle: SavedStateHandle,
+    private val habitDefaults: HabitDefaults,
 ) : ViewModel() {
 
     private val habitId: Long = savedStateHandle.get<Long>(MnlistsRoutes.HABIT_ID_ARG) ?: 0L
     private var existingHabit: Habit? = null
+
+    /** Never let a slow preference read overwrite a schedule the user just picked. */
+    private var scheduleTouched = false
 
     var uiState by mutableStateOf(HabitEditorUiState(isLoading = habitId > 0L))
         private set
@@ -50,7 +56,20 @@ class HabitEditorViewModel @Inject constructor(
     val isEditing: Boolean get() = habitId > 0L
 
     init {
-        if (habitId > 0L) load()
+        if (habitId > 0L) {
+            load()
+        } else {
+            loadDefaultSchedule()
+        }
+    }
+
+    private fun loadDefaultSchedule() {
+        viewModelScope.launch {
+            val default = habitDefaults.defaultResetSchedule.first()
+            if (!scheduleTouched && existingHabit == null) {
+                uiState = uiState.copy(schedule = default)
+            }
+        }
     }
 
     private fun load() {
@@ -83,6 +102,7 @@ class HabitEditorViewModel @Inject constructor(
     }
 
     fun setSchedule(schedule: ResetSchedule) {
+        scheduleTouched = true
         uiState = uiState.copy(
             schedule = schedule,
             everyNError = false,

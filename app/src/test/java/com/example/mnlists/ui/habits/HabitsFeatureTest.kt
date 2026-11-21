@@ -9,6 +9,7 @@ import com.example.mnlists.data.local.entity.HabitLog
 import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.repository.HabitRepository
 import com.example.mnlists.data.reset.HabitResetManager
+import com.example.mnlists.data.settings.FakeHabitDefaults
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -100,8 +101,22 @@ class HabitsFeatureTest {
     }
 
     @Test
+    fun editor_newHabit_usesTheDefaultScheduleFromSettings() = runBlocking {
+        val defaults = FakeHabitDefaults(ResetSchedule.WEEKLY)
+        val newVm = HabitEditorViewModel(repository, SavedStateHandle(), defaults)
+        assertEquals(ResetSchedule.WEEKLY, newVm.uiState.schedule)
+
+        newVm.setTitle("Preset")
+        newVm.save { }
+        assertEquals(
+            ResetSchedule.WEEKLY,
+            repository.observeHabits().first().single().resetSchedule,
+        )
+    }
+
+    @Test
     fun editor_createsHabit_andRejectsInvalidInput() = runBlocking {
-        val newVm = HabitEditorViewModel(repository, SavedStateHandle())
+        val newVm = HabitEditorViewModel(repository, SavedStateHandle(), FakeHabitDefaults())
         newVm.setTitle("   ")
         var saved = false
         newVm.save { saved = true }
@@ -148,6 +163,7 @@ class HabitsFeatureTest {
         val editor = HabitEditorViewModel(
             repository,
             SavedStateHandle(mapOf(MnlistsRoutes.HABIT_ID_ARG to habitId)),
+            FakeHabitDefaults(),
         )
         assertEquals("Stretch", editor.uiState.title)
         assertEquals("before bed", editor.uiState.note)
@@ -183,6 +199,7 @@ class HabitsFeatureTest {
         val editor = HabitEditorViewModel(
             repository,
             SavedStateHandle(mapOf(MnlistsRoutes.HABIT_ID_ARG to habitId)),
+            FakeHabitDefaults(),
         )
         var deleted = false
         editor.delete { deleted = true }

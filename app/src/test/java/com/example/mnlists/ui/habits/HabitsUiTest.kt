@@ -14,6 +14,7 @@ import com.example.mnlists.data.local.MnlistsDatabase
 import com.example.mnlists.data.local.entity.Habit
 import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.repository.HabitRepository
+import com.example.mnlists.data.settings.FakeHabitDefaults
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.util.concurrent.Executor
 import kotlinx.coroutines.flow.first
@@ -134,6 +135,7 @@ class HabitsUiTest {
         val viewModel = HabitEditorViewModel(
             repository,
             SavedStateHandle(mapOf(MnlistsRoutes.HABIT_ID_ARG to habitId)),
+            FakeHabitDefaults(),
         )
         var done = false
 
@@ -163,7 +165,7 @@ class HabitsUiTest {
 
     @Test
     fun editor_usesRoundCounterToggles_andOffersNoMonthlyReset() = runBlocking {
-        val viewModel = HabitEditorViewModel(repository, SavedStateHandle())
+        val viewModel = HabitEditorViewModel(repository, SavedStateHandle(), FakeHabitDefaults())
 
         compose.setContent {
             MaterialTheme {

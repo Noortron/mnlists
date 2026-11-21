@@ -8,6 +8,13 @@ enum class ResetSchedule {
 
     /** Every N days/weeks/months, using `Habit.resetEveryN`. */
     EVERY_N,
+    ;
+
+    companion object {
+        /** Unknown/stale preference values fall back to the app's original daily default. */
+        fun fromStorage(value: String?): ResetSchedule =
+            entries.firstOrNull { it.name == value } ?: DAILY
+    }
 }
 
 /** Recurrence pattern of a Daily series (SPEC §4.3). */

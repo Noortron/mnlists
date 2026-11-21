@@ -55,7 +55,7 @@ import com.example.mnlists.ui.habits.HabitsRoute
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import com.example.mnlists.ui.navigation.TopLevelDestination
 import com.example.mnlists.ui.screens.AboutScreen
-import com.example.mnlists.ui.screens.SettingsScreen
+import com.example.mnlists.ui.screens.SettingsRoute
 import com.example.mnlists.ui.todos.TodoEditorScreen
 import com.example.mnlists.ui.todos.TodosRoute
 
@@ -120,8 +120,8 @@ fun MnlistsApp(
                     MaterialTheme.colorScheme.background
                 },
                 onNavigateBack = { navController.popBackStack() },
-                onOpenSettings = { navController.navigateSingleTop(MnlistsRoutes.SETTINGS) },
-                onOpenAbout = { navController.navigateSingleTop(MnlistsRoutes.ABOUT) },
+                onOpenSettings = { navController.navigateToSettings() },
+                onOpenAbout = { navController.navigateToAbout() },
             )
         },
         bottomBar = {
@@ -238,7 +238,7 @@ fun MnlistsApp(
             }
             composable(MnlistsRoutes.CALENDAR) { CalendarRoute() }
             composable(MnlistsRoutes.SETTINGS) {
-                SettingsScreen(
+                SettingsRoute(
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
                 )
@@ -250,7 +250,7 @@ fun MnlistsApp(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MnlistsTopBar(
+internal fun MnlistsTopBar(
     title: String,
     showOverflowMenu: Boolean,
     containerColor: Color,
@@ -358,7 +358,8 @@ private fun AddFab(destination: TopLevelDestination, onClick: () -> Unit) {
 }
 
 /** Switches between the four top-level tabs without growing the back stack. */
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {    navigate(destination.route) {
+private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
+    navigate(destination.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true
@@ -368,3 +369,8 @@ private fun NavHostController.navigateToTopLevel(destination: TopLevelDestinatio
 private fun NavHostController.navigateSingleTop(route: String) {
     navigate(route) { launchSingleTop = true }
 }
+
+/** Shared overflow-menu destinations, also used by the navigation UI test. */
+internal fun NavHostController.navigateToSettings() = navigateSingleTop(MnlistsRoutes.SETTINGS)
+
+internal fun NavHostController.navigateToAbout() = navigateSingleTop(MnlistsRoutes.ABOUT)

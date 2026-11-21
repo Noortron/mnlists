@@ -197,7 +197,7 @@
     <string name="calendar_task_skipped">Skipped</string>
     <string name="calendar_task_with_state">%1$s · %2$s</string>
 
-    <!-- Settings / About placeholders -->
+    <!-- Settings / About (SPEC §4.8, Step 13) -->
     <string name="settings_appearance">Appearance</string>
     <string name="settings_appearance_footnote">Changes apply immediately and are saved on this device.</string>
     <string name="theme_mode_system">System default</string>
@@ -206,6 +206,26 @@
     <string name="theme_mode_light_description">White background, light green accents</string>
     <string name="theme_mode_dark">Dark</string>
     <string name="theme_mode_dark_description">Midnight dusk background, dusk-blue accents</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notification_status_label">Reminder notifications</string>
+    <string name="settings_notification_status_allowed">Allowed</string>
+    <string name="settings_notification_status_not_allowed">Not allowed</string>
+    <string name="settings_notification_status_blocked">Blocked</string>
+    <string name="settings_notification_support_allowed">Reminder alerts can appear on this device.</string>
+    <string name="settings_notification_support_not_allowed">Allow notifications so reminders can appear.</string>
+    <string name="settings_notification_support_blocked">Notifications are disabled in Android settings.</string>
+    <string name="settings_notification_allow">Allow</string>
+    <string name="settings_notification_open_settings">Open settings</string>
+    <string name="settings_habit_defaults">New habit defaults</string>
+    <string name="settings_habit_defaults_footnote">Preselected when you create a habit; you can still change it per habit.</string>
+    <string name="settings_habit_default_daily">Counter resets every day.</string>
+    <string name="settings_habit_default_weekly">Counter resets each week.</string>
+    <string name="settings_habit_default_monthly">Counter resets each month.</string>
+    <string name="settings_habit_default_every_n">Uses the “every N days” value set on the habit.</string>
     <string name="about_version">Version %1$s</string>
-    <string name="about_description">A calm, local-only planner for habits, dailies and to-do\'s. Everything stays on your device.</string>
+    <string name="about_description">A strictly local-only, offline Android app for personal task and habit management. Everything stays on your device.</string>
+    <string name="about_credits_title">Credits</string>
+    <string name="about_credits_body">Made by Noortron. Built with Jetpack Compose, Material 3, Room, Hilt, Navigation Compose and DataStore.</string>
+    <string name="about_privacy_title">Local and private</string>
+    <string name="about_privacy_body">No account, no network and no analytics. Your habits, tasks, reminders and history stay on this device.</string>
 </resources>
