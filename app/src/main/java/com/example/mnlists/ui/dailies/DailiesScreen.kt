@@ -2,6 +2,7 @@ package com.example.mnlists.ui.dailies
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -297,6 +300,29 @@ private fun SectionHeader(text: String) {
     )
 }
 
+/** Compact » badge that marks a skipped occurrence at a glance. */
+@Composable
+private fun SkippedBadge(description: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .size(24.dp)
+            .testTag(DAILY_SKIPPED_BADGE_TAG)
+            // mergeDescendants keeps this badge a standalone node in the merged
+            // semantics tree; otherwise the parent row's clickable merges it away.
+            .semantics(mergeDescendants = true) { contentDescription = description },
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = "»",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
+    }
+}
+
 @Composable
 private fun DailyRow(
     entry: DailyEntry,
@@ -330,11 +356,13 @@ private fun DailyRow(
         if (collapsed) R.string.todo_subtask_expand else R.string.todo_subtask_collapse,
         title,
     )
-    // Only Completed rows are dimmed; Skipped rows just move sections (SPEC §4.6).
-    val contentColor = if (completed) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurface
+    // Completed rows are gray + struck through; skipped rows keep their title
+    // (no strikethrough) but get a tertiary tint and a » badge so the two
+    // bottom sections are easy to tell apart (Step 14).
+    val contentColor = when {
+        completed -> MaterialTheme.colorScheme.onSurfaceVariant
+        skipped -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.onSurface
     }
 
     Surface(
@@ -355,13 +383,22 @@ private fun DailyRow(
                         .clickable(role = Role.Button, onClick = onOpenSeries)
                         .padding(vertical = 6.dp),
                 ) {
-                    Text(
-                        text = title.decorated(completed),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = contentColor,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (skipped && !completed) {
+                            SkippedBadge(
+                                description = stringResource(R.string.daily_skipped_badge),
+                                modifier = Modifier.padding(end = 6.dp),
+                            )
+                        }
+                        Text(
+                            text = title.decorated(completed),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = contentColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     if (entry.daily.note.isNotBlank()) {
                         Text(
                             text = entry.daily.note.decorated(completed),
@@ -393,7 +430,7 @@ private fun DailyRow(
                 TextButton(
                     onClick = { onToggleSkipped(!skipped) },
                     modifier = Modifier
-                        .heightIn(min = 40.dp)
+                        .heightIn(min = 48.dp)
                         .semantics { contentDescription = skipDescription },
                 ) {
                     Text(stringResource(if (skipped) R.string.daily_unskip else R.string.daily_skip))
@@ -420,3 +457,6 @@ private fun DailyRow(
         }
     }
 }
+
+/** Test tag for the skipped-row » badge. */
+internal const val DAILY_SKIPPED_BADGE_TAG = "dailySkippedBadge"

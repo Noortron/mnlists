@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.local.entity.Todo
 import com.example.mnlists.data.repository.TodoRepository
+import com.example.mnlists.data.settings.TodoSortMode
+import com.example.mnlists.data.settings.TodoSortPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,19 +19,33 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Backs the To-Do's tab: live rows, completion toggles and reset-safe ordering. */
+/** Backs the To-Do's tab: live rows, completion toggles and sortable ordering. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class TodosViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
+    sortPreferences: TodoSortPreferences,
 ) : ViewModel() {
 
+    /** The persisted choice from Settings; dragging is only offered in MANUAL. */
+    val sortMode: StateFlow<TodoSortMode> = sortPreferences.todoSortMode
+        .stateIn(
+            scope = viewModelScope,
+            // Eager so the current mode is available to the screen (and to
+            // moveTodo) from the first frame without waiting for collection.
+            started = SharingStarted.Eagerly,
+            initialValue = TodoSortMode.MANUAL,
+        )
+
     /**
-     * The DAO already orders incomplete rows first (`isCompleted ASC,
-     * sortOrder ASC`); the screen splits the list into the open and Completed
-     * sections without re-sorting.
+     * The DAO returns `isCompleted ASC, sortOrder ASC`. MANUAL keeps that exact
+     * order; DUE_DATE reorders within each completion section by deadline
+     * (undated last), preserving the manual order as the tie-breaker.
      */
-    val todos: StateFlow<List<Todo>> = todoRepository.observeTodos()
+    val todos: StateFlow<List<Todo>> = combine(
+        todoRepository.observeTodos(),
+        sortPreferences.todoSortMode,
+    ) { rows, mode -> rows.sortedFor(mode) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
@@ -84,4 +100,16 @@ class TodosViewModel @Inject constructor(
         val ordered = (if (inOpen) moved + completed else open + moved).map { it.id }
         viewModelScope.launch { todoRepository.reorderTodos(ordered) }
     }
+}
+
+/** Pure ordering helper so the due-date rule can be unit-tested directly. */
+internal fun List<Todo>.sortedFor(mode: TodoSortMode): List<Todo> = when (mode) {
+    TodoSortMode.MANUAL -> this
+    TodoSortMode.DUE_DATE -> sortedWith(
+        compareBy<Todo> { it.isCompleted }
+            .thenBy { it.dueDate == null }
+            .thenBy { it.dueDate ?: Long.MAX_VALUE }
+            .thenBy { it.sortOrder }
+            .thenBy { it.id },
+    )
 }

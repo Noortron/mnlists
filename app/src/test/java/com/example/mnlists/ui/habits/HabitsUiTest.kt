@@ -5,9 +5,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import com.example.mnlists.data.local.MnlistsDatabase
@@ -119,6 +121,26 @@ class HabitsUiTest {
 
         // Habits never collapse; the handle is present for long-press reordering.
         compose.onNodeWithContentDescription("Reorder Read").assertIsDisplayed()
+    }
+
+    @Test
+    fun editor_blankTitle_showsInlineRedError_andDoesNotSave() = runBlocking {
+        val editor = HabitEditorViewModel(repository, SavedStateHandle(), FakeHabitDefaults())
+        var saved = false
+        compose.setContent {
+            MaterialTheme {
+                HabitEditorScreen(onDone = { saved = true }, viewModel = editor)
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(HABIT_TITLE_TAG).performTextReplacement("   ")
+        compose.onNodeWithText("Save").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Title cannot be empty").assertIsDisplayed()
+        assertFalse(saved)
+        assertTrue(repository.observeHabits().first().isEmpty())
     }
 
     @Test

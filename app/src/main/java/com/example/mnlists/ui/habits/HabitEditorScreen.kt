@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -105,6 +106,7 @@ fun HabitEditorScreen(
                         singleLine = true,
                         textStyle = MaterialTheme.typography.titleMedium,
                         isError = state.titleError,
+                        modifier = Modifier.testTag(HABIT_TITLE_TAG),
                     )
                     if (state.titleError) {
                         FieldError(stringResource(R.string.habit_title_error))
@@ -534,3 +536,6 @@ private fun ResetSchedule.labelRes(): Int = when (this) {
 
 private fun DayOfWeek.displayName(): String =
     getDisplayName(DayTextStyle.FULL, Locale.getDefault())
+
+/** Test tag for the parent title field. */
+internal const val HABIT_TITLE_TAG = "habitTitle"

@@ -28,6 +28,21 @@ MNlists is built around four core concepts, separated into a clean bottom-tab na
 - **Minimum SDK:** 26 (Android 8.0)
 
 ## Project Status
-Currently under active development. The core data layer, habit engine, To-Do engine, Dailies engine, and drag-and-drop reordering systems are complete and backed by a comprehensive suite of 96+ passing Robolectric/JVM unit and UI tests. 
+Complete and release-ready. All features and polish steps are done, backed by 184 passing JVM/Robolectric unit and UI tests (0 failures), including WCAG AA contrast checks for both palettes. Version 1.0 (versionCode 1).
 
 *Built as a completely native Android experience, designed for speed, reliability, and zero network dependencies.*
+
+## Building a signed release APK
+
+The app has **no signing configuration committed** — you create and keep your own key.
+
+1. In Android Studio: **Build → Generate Signed App Bundle / APK…** → choose **APK** → **Create new…** key store, pick a safe path (e.g. `release/mnlists-release.jks`), set store/key passwords and an alias such as `mnlists`, fill in at least your name, and choose a validity of 25+ years. **Back up the keystore and passwords** — without them you can never publish an update to the same app.
+2. Choose the **release** variant and an output folder (the wizard defaults to `app/release/`). Android Studio builds and signs the APK.
+3. To repeat this from Gradle instead, add a `signingConfigs { create("release") { … } }` block to `app/build.gradle.kts` pointing at your keystore and reference it with `signingConfig = signingConfigs.getByName("release")` inside `buildTypes.release`, then run:
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+.\gradlew.bat :app:assembleRelease
+```
+
+The signed APK is written to `app/build/outputs/apk/release/app-release.apk`. Keep passwords in environment variables (or `local.properties`, which is gitignored) rather than in source control. `*.jks` / `*.keystore` are gitignored — never commit your signing key.

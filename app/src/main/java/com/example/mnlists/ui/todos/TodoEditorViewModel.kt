@@ -59,6 +59,14 @@ class TodoEditorViewModel @Inject constructor(
     var reminders by mutableStateOf<List<Reminder>>(emptyList())
         private set
 
+    /**
+     * Set once when a brand-new to-do is committed on demand (first subtask or
+     * reminder). The scaffold uses it to replace the "New to-do" route with the
+     * edit route so the top-bar title matches the editor's edit-mode state.
+     */
+    var createdParentId by mutableStateOf<Long?>(null)
+        private set
+
     val isEditing: Boolean get() = todoId > 0L
 
     init {
@@ -154,6 +162,7 @@ class TodoEditorViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            val wasNew = todoId == 0L
             val parentId = ensureParent() ?: run {
                 onResult(false)
                 return@launch
@@ -168,6 +177,7 @@ class TodoEditorViewModel @Inject constructor(
                 ),
             )
             refreshSubtasks()
+            if (wasNew) createdParentId = parentId
             onResult(true)
         }
     }
@@ -236,6 +246,7 @@ class TodoEditorViewModel @Inject constructor(
      */
     fun addReminder(epochDay: Long, minutesOfDay: Int) {
         viewModelScope.launch {
+            val wasNew = todoId == 0L
             val parentId = ensureParent() ?: return@launch
             reminderScheduler.create(
                 parentType = ReminderParentType.TODO,
@@ -244,6 +255,7 @@ class TodoEditorViewModel @Inject constructor(
                 minutesOfDay = minutesOfDay,
             )
             refreshReminders()
+            if (wasNew) createdParentId = parentId
         }
     }
 

@@ -41,6 +41,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,9 +79,19 @@ import com.example.mnlists.ui.components.ReminderSection
 @Composable
 fun TodoEditorScreen(
     onDone: () -> Unit,
+    /**
+     * Fired when a first subtask/reminder commits a brand-new parent. The
+     * scaffold swaps the "New to-do" route for the edit route so the top-bar
+     * title matches the editor's new edit-mode state.
+     */
+    onParentCreated: (Long) -> Unit = {},
     viewModel: TodoEditorViewModel = hiltViewModel(),
 ) {
     val state = viewModel.uiState
+    val createdParentId = viewModel.createdParentId
+    LaunchedEffect(createdParentId) {
+        if (createdParentId != null) onParentCreated(createdParentId)
+    }
     val subtasks = viewModel.subtasks
     val reminders = viewModel.reminders
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -121,6 +132,7 @@ fun TodoEditorScreen(
                         singleLine = true,
                         textStyle = MaterialTheme.typography.titleMedium,
                         isError = state.titleError,
+                        modifier = Modifier.testTag(TODO_TITLE_TAG),
                     )
                     if (state.titleError) {
                         FieldError(stringResource(R.string.todo_title_error))
@@ -863,7 +875,8 @@ private fun QuickDateChip(
     )
 }
 
-/** Test tags for the subtask editor fields and deadline chips. */
+/** Test tags for the parent title field and the subtask editor fields. */
+internal const val TODO_TITLE_TAG = "todoTitle"
 internal const val SUBTASK_TITLE_TAG = "subtaskTitle"
 internal const val SUBTASK_NOTE_TAG = "subtaskNote"
 internal const val SUBTASK_DEADLINE_NONE_TAG = "subtaskDeadlineNone"

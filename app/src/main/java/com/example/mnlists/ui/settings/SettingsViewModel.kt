@@ -7,6 +7,7 @@ import com.example.mnlists.data.settings.NotificationAccessChecker
 import com.example.mnlists.data.settings.NotificationAccessState
 import com.example.mnlists.data.settings.SettingsRepository
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.data.settings.TodoSortMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,13 @@ class SettingsViewModel @Inject constructor(
             initialValue = ResetSchedule.DAILY,
         )
 
+    val todoSortMode: StateFlow<TodoSortMode> = settingsRepository.todoSortMode
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+            initialValue = TodoSortMode.MANUAL,
+        )
+
     private val _notificationAccess = MutableStateFlow(notificationAccessChecker.currentStatus())
     val notificationAccess: StateFlow<NotificationAccessState> = _notificationAccess.asStateFlow()
 
@@ -46,6 +54,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setDefaultResetSchedule(schedule: ResetSchedule) {
         viewModelScope.launch { settingsRepository.setDefaultResetSchedule(schedule) }
+    }
+
+    fun setTodoSortMode(mode: TodoSortMode) {
+        viewModelScope.launch { settingsRepository.setTodoSortMode(mode) }
     }
 
     /** Re-reads permission/app/channel state after a permission prompt or system settings. */

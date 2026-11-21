@@ -28,7 +28,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 @Singleton
 class SettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
-) : HabitDefaults {
+) : HabitDefaults, TodoSortPreferences {
 
     private val preferencesFlow: Flow<Preferences> = context.settingsDataStore.data
         .catch { throwable ->
@@ -47,6 +47,11 @@ class SettingsRepository @Inject constructor(
         .map { preferences -> ResetSchedule.fromStorage(preferences[DEFAULT_RESET_SCHEDULE_KEY]) }
         .distinctUntilChanged()
 
+    /** Persisted To-Do ordering; defaults to the drag-driven manual order. */
+    override val todoSortMode: Flow<TodoSortMode> = preferencesFlow
+        .map { preferences -> TodoSortMode.fromStorage(preferences[TODO_SORT_MODE_KEY]) }
+        .distinctUntilChanged()
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.settingsDataStore.edit { preferences ->
             preferences[THEME_MODE_KEY] = mode.storageValue
@@ -59,8 +64,15 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setTodoSortMode(mode: TodoSortMode) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[TODO_SORT_MODE_KEY] = mode.storageValue
+        }
+    }
+
     private companion object {
         val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
         val DEFAULT_RESET_SCHEDULE_KEY = stringPreferencesKey("default_reset_schedule")
+        val TODO_SORT_MODE_KEY = stringPreferencesKey("todo_sort_mode")
     }
 }

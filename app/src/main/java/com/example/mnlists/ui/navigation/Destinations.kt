@@ -44,8 +44,9 @@ object MnlistsRoutes {
     const val DAILY_ID_ARG = "dailyId"
 
     /**
-     * Occurrence-only editor (SPEC §9). Step 12's Calendar day list opens this
-     * route; the Dailies list also exposes it via "Edit this day".
+     * Occurrence-only editor (SPEC §9). Kept for direct links; the Step 12
+     * Calendar is check/uncheck-only and the Dailies list opens the series
+     * editor when its title is tapped (Step 9.5 removed "Edit this day").
      */
     const val DAILY_OCCURRENCE_EDITOR = "dailies/occurrence/{occurrenceId}"
     const val DAILY_OCCURRENCE_ID_ARG = "occurrenceId"

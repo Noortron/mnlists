@@ -1,28 +1,41 @@
 package com.example.mnlists.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.mnlists.BuildConfig
 import com.example.mnlists.R
 
 /**
- * About page (SPEC §4.8, Step 13): name, version, short description, credits
- * and the app's local-only privacy stance.
+ * About page (SPEC §4.8, Step 13; redesigned in Step 14): app name, version,
+ * the short local-only description and exactly two Material 3 link rows.
+ * Credits and the redundant privacy card were removed — the description
+ * already states that everything stays on the device.
  */
 @Composable
 fun AboutScreen() {
@@ -46,64 +59,105 @@ fun AboutScreen() {
             modifier = Modifier.padding(top = 4.dp),
         )
 
-        // GitHub Links
-        Text(
-            text = stringResource(R.string.about_github_repo),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .padding(top = 12.dp)
-                .clickable { uriHandler.openUri("https://github.com/Noortron/mnlists") },
-        )
-        Text(
-            text = stringResource(R.string.about_github_profile),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .padding(top = 4.dp)
-                .clickable { uriHandler.openUri("https://github.com/Noortron") },
-        )
-
-        Spacer(Modifier.height(20.dp))
         Text(
             text = stringResource(R.string.about_description),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 20.dp),
         )
 
-        AboutSection(
-            title = stringResource(R.string.about_credits_title),
-            body = stringResource(R.string.about_credits_body),
-            modifier = Modifier.padding(top = 26.dp),
-        )
-        AboutSection(
-            title = stringResource(R.string.about_privacy_title),
-            body = stringResource(R.string.about_privacy_body),
-            modifier = Modifier.padding(top = 22.dp),
-        )
-    }
-}
-
-@Composable
-private fun AboutSection(title: String, body: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            text = title,
+            text = stringResource(R.string.about_links_title),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 4.dp, top = 28.dp, bottom = 8.dp),
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(16.dp),
-            )
+            Column {
+                AboutLinkRow(
+                    icon = Icons.Filled.Person,
+                    label = stringResource(R.string.about_github_profile),
+                    url = PROFILE_URL,
+                    tag = ABOUT_PROFILE_LINK_TAG,
+                    onClick = { uriHandler.openUri(PROFILE_URL) },
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                AboutLinkRow(
+                    icon = Icons.Filled.Build,
+                    label = stringResource(R.string.about_github_repo),
+                    url = SOURCE_URL,
+                    tag = ABOUT_SOURCE_LINK_TAG,
+                    onClick = { uriHandler.openUri(SOURCE_URL) },
+                )
+            }
         }
     }
 }
+
+/** One 56dp+ Material 3 link row: tinted icon badge, label, URL and chevron. */
+@Composable
+private fun AboutLinkRow(
+    icon: ImageVector,
+    label: String,
+    url: String,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        supportingContent = {
+            Text(
+                text = url,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        leadingContent = {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .testTag(tag),
+    )
+}
+
+private const val PROFILE_URL = "https://github.com/Noortron"
+private const val SOURCE_URL = "https://github.com/Noortron/mnlists"
+
+/** Test tags for the two link rows. */
+internal const val ABOUT_PROFILE_LINK_TAG = "aboutProfileLink"
+internal const val ABOUT_SOURCE_LINK_TAG = "aboutSourceLink"

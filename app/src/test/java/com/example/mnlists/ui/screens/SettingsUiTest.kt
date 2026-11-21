@@ -17,6 +17,7 @@ import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.settings.NotificationAccessState
 import com.example.mnlists.data.settings.NotificationAccessStatus
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.data.settings.TodoSortMode
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -87,6 +88,30 @@ class SettingsUiTest {
     }
 
     @Test
+    fun todoSortSelection_defaultsToManual_andReportsChanges() {
+        var mode by mutableStateOf(TodoSortMode.MANUAL)
+        compose.setContent {
+            MaterialTheme {
+                SettingsScreen(
+                    themeMode = ThemeMode.SYSTEM,
+                    onThemeModeChange = {},
+                    todoSortMode = mode,
+                    onTodoSortModeChange = { mode = it },
+                )
+            }
+        }
+
+        compose.onNodeWithTag(settingsTodoSortTag(TodoSortMode.MANUAL))
+            .performScrollTo()
+            .assertIsSelected()
+        compose.onNodeWithTag(settingsTodoSortTag(TodoSortMode.DUE_DATE))
+            .performScrollTo()
+            .performClick()
+            .assertIsSelected()
+        assertEquals(TodoSortMode.DUE_DATE, mode)
+    }
+
+    @Test
     fun notificationStatus_showsTheRightStateAndAction() {
         var actions = 0
         var access by mutableStateOf(
@@ -154,7 +179,7 @@ class SettingsUiTest {
     }
 
     @Test
-    fun about_showsNameVersionDescriptionAndCredits() {
+    fun about_showsNameVersionDescriptionAndExactlyTwoLinkRows() {
         compose.setContent {
             MaterialTheme { AboutScreen() }
         }
@@ -164,10 +189,17 @@ class SettingsUiTest {
             context.getString(R.string.about_version, BuildConfig.VERSION_NAME),
         ).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.about_description)).assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.about_credits_title))
+
+        // Credits and the redundant "Local and private" card are gone.
+        compose.onNodeWithText("Credits").assertDoesNotExist()
+        compose.onNodeWithText("Local and private").assertDoesNotExist()
+
+        compose.onNodeWithTag(ABOUT_PROFILE_LINK_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(ABOUT_SOURCE_LINK_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.about_github_profile))
             .performScrollTo()
             .assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.about_credits_body))
+        compose.onNodeWithText(context.getString(R.string.about_github_repo))
             .performScrollTo()
             .assertIsDisplayed()
     }

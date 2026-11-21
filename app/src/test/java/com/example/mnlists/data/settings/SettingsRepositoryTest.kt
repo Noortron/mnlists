@@ -27,17 +27,22 @@ class SettingsRepositoryTest {
         // Fresh installs (and unknown values) fall back to the original behaviour.
         assertEquals(ThemeMode.SYSTEM, repository.themeMode.first())
         assertEquals(ResetSchedule.DAILY, repository.defaultResetSchedule.first())
+        assertEquals(TodoSortMode.MANUAL, repository.todoSortMode.first())
         assertEquals(ThemeMode.SYSTEM, ThemeMode.fromStorage("purple"))
         assertEquals(ResetSchedule.DAILY, ResetSchedule.fromStorage("hourly"))
         assertEquals(ResetSchedule.WEEKLY, ResetSchedule.fromStorage("WEEKLY"))
+        assertEquals(TodoSortMode.MANUAL, TodoSortMode.fromStorage("byColour"))
+        assertEquals(TodoSortMode.DUE_DATE, TodoSortMode.fromStorage("DUE_DATE"))
 
         repository.setThemeMode(ThemeMode.DARK)
         repository.setDefaultResetSchedule(ResetSchedule.EVERY_N)
+        repository.setTodoSortMode(TodoSortMode.DUE_DATE)
 
         assertEquals(ThemeMode.DARK, repository.themeMode.first { it == ThemeMode.DARK })
         assertEquals(
             ResetSchedule.EVERY_N,
             repository.defaultResetSchedule.first { it == ResetSchedule.EVERY_N },
         )
+        assertEquals(TodoSortMode.DUE_DATE, repository.todoSortMode.first { it == TodoSortMode.DUE_DATE })
     }
 }

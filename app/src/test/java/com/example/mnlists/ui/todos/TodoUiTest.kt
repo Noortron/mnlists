@@ -251,6 +251,28 @@ class TodoUiTest {
     }
 
     @Test
+    fun editor_blankTitle_showsInlineRedError_andDoesNotSave() = runBlocking {
+        val editor = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
+        var saved = false
+        compose.setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalCursorBlinkEnabled provides false) {
+                    TodoEditorScreen(onDone = { saved = true }, viewModel = editor)
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(TODO_TITLE_TAG).performTextReplacement("   ")
+        compose.onNodeWithText("Save").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Title cannot be empty").assertIsDisplayed()
+        assertFalse(saved)
+        assertTrue(repository.observeTodos().first().isEmpty())
+    }
+
+    @Test
     fun editor_savesWithoutDueDate_andClearingADateStaysEmpty() = runBlocking {
         val viewModel = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
         var done = false

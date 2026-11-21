@@ -226,7 +226,17 @@ fun MnlistsApp(
                 )
             }
             composable(MnlistsRoutes.TODO_NEW) {
-                TodoEditorScreen(onDone = { navController.popBackStack() })
+                TodoEditorScreen(
+                    onDone = { navController.popBackStack() },
+                    onParentCreated = { todoId ->
+                        // Adding a first subtask/reminder commits the parent, so the
+                        // editor is now in edit mode; replace the route to keep the
+                        // top-bar title ("Edit to-do") and back stack in sync.
+                        navController.navigate(MnlistsRoutes.todoEditorRoute(todoId)) {
+                            popUpTo(MnlistsRoutes.TODO_NEW) { inclusive = true }
+                        }
+                    },
+                )
             }
             composable(
                 route = MnlistsRoutes.TODO_EDITOR,

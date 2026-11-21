@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -85,7 +86,8 @@ class SettingsNavigationTest {
             .performClick()
         compose.onNodeWithText(context.getString(R.string.menu_about)).performClick()
 
-        compose.onNodeWithText(context.getString(R.string.about_credits_title))
+        compose.onNodeWithText(context.getString(R.string.about_github_profile))
+            .performScrollTo()
             .assertIsDisplayed()
     }
 

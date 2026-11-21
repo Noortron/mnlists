@@ -54,6 +54,7 @@ import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.settings.NotificationAccessState
 import com.example.mnlists.data.settings.NotificationAccessStatus
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.data.settings.TodoSortMode
 import com.example.mnlists.ui.backup.BackupFileIo
 import com.example.mnlists.ui.backup.BackupViewModel
 import com.example.mnlists.ui.settings.SettingsViewModel
@@ -68,6 +69,7 @@ fun SettingsRoute(
     backupViewModel: BackupViewModel = hiltViewModel(),
 ) {
     val defaultSchedule by viewModel.defaultResetSchedule.collectAsStateWithLifecycle()
+    val todoSortMode by viewModel.todoSortMode.collectAsStateWithLifecycle()
     val notificationAccess by viewModel.notificationAccess.collectAsStateWithLifecycle()
     val pendingBackup by backupViewModel.pending.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -143,6 +145,8 @@ fun SettingsRoute(
             onThemeModeChange = onThemeModeChange,
             defaultSchedule = defaultSchedule,
             onDefaultScheduleChange = viewModel::setDefaultResetSchedule,
+            todoSortMode = todoSortMode,
+            onTodoSortModeChange = viewModel::setTodoSortMode,
             notificationAccess = notificationAccess,
             onNotificationAction = {
                 if (notificationAccess.canRequestPermission) {
@@ -199,6 +203,8 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     defaultSchedule: ResetSchedule = ResetSchedule.DAILY,
     onDefaultScheduleChange: (ResetSchedule) -> Unit = {},
+    todoSortMode: TodoSortMode = TodoSortMode.MANUAL,
+    onTodoSortModeChange: (TodoSortMode) -> Unit = {},
     notificationAccess: NotificationAccessState = NotificationAccessState(),
     onNotificationAction: () -> Unit = {},
     onExportBackup: () -> Unit = {},
@@ -233,6 +239,31 @@ fun SettingsScreen(
         }
 
         Footnote(stringResource(R.string.settings_appearance_footnote))
+
+        SectionHeader(
+            text = stringResource(R.string.settings_todo_sort),
+            modifier = Modifier.padding(top = 22.dp),
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Column(Modifier.selectableGroup()) {
+                TodoSortOptionRow(
+                    mode = TodoSortMode.MANUAL,
+                    selected = todoSortMode == TodoSortMode.MANUAL,
+                    onClick = { onTodoSortModeChange(TodoSortMode.MANUAL) },
+                )
+                SettingsDivider()
+                TodoSortOptionRow(
+                    mode = TodoSortMode.DUE_DATE,
+                    selected = todoSortMode == TodoSortMode.DUE_DATE,
+                    onClick = { onTodoSortModeChange(TodoSortMode.DUE_DATE) },
+                )
+            }
+        }
+        Footnote(stringResource(R.string.settings_todo_sort_footnote))
 
         SectionHeader(
             text = stringResource(R.string.settings_notifications),
@@ -468,6 +499,28 @@ private fun ScheduleOptionRow(
 }
 
 @Composable
+private fun TodoSortOptionRow(
+    mode: TodoSortMode,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val (title, description) = when (mode) {
+        TodoSortMode.MANUAL -> stringResource(R.string.settings_todo_sort_manual) to
+            stringResource(R.string.settings_todo_sort_manual_description)
+        TodoSortMode.DUE_DATE -> stringResource(R.string.settings_todo_sort_due_date) to
+            stringResource(R.string.settings_todo_sort_due_date_description)
+    }
+
+    OptionRow(
+        title = title,
+        description = description,
+        selected = selected,
+        onClick = onClick,
+        modifier = Modifier.testTag(settingsTodoSortTag(mode)),
+    )
+}
+
+@Composable
 private fun OptionRow(
     title: String,
     description: String,
@@ -519,6 +572,9 @@ internal fun settingsThemeTag(mode: ThemeMode): String = "settingsTheme_${mode.n
 
 internal fun settingsDefaultScheduleTag(schedule: ResetSchedule): String =
     "settingsDefaultSchedule_${schedule.name.lowercase()}"
+
+internal fun settingsTodoSortTag(mode: TodoSortMode): String =
+    "settingsTodoSort_${mode.name.lowercase()}"
 
 internal const val SETTINGS_NOTIFICATION_ACTION_TAG = "settingsNotificationAction"
 internal const val SETTINGS_EXPORT_TAG = "settingsExportBackup"

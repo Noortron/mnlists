@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mnlists.R
 import com.example.mnlists.data.local.entity.Subtask
 import com.example.mnlists.data.local.entity.Todo
+import com.example.mnlists.data.settings.TodoSortMode
 import com.example.mnlists.ui.components.PlaceholderContent
 import com.example.mnlists.ui.components.ReorderHandle
 import com.example.mnlists.ui.components.rememberReorderDragState
@@ -49,10 +50,12 @@ fun TodosRoute(
 ) {
     val todos by viewModel.todos.collectAsStateWithLifecycle()
     val subtasks by viewModel.subtasks.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
 
     TodosScreen(
         todos = todos,
         subtasksByTodo = subtasks,
+        sortMode = sortMode,
         onOpenTodo = onOpenTodo,
         onToggleCompleted = viewModel::setCompleted,
         onToggleSubtask = viewModel::setSubtaskCompleted,
@@ -70,6 +73,7 @@ fun TodosRoute(
 fun TodosScreen(
     todos: List<Todo>,
     subtasksByTodo: Map<Long, List<Subtask>> = emptyMap(),
+    sortMode: TodoSortMode = TodoSortMode.MANUAL,
     onOpenTodo: (Long) -> Unit,
     onToggleCompleted: (Long, Boolean) -> Unit,
     onToggleSubtask: (Long, Boolean) -> Unit = { _, _ -> },
@@ -118,11 +122,16 @@ fun TodosScreen(
                         }
                     },
                     onToggleSubtask = onToggleSubtask,
-                    dragModifier = Modifier.reorderHandle(
-                        state = dragState,
-                        key = todo.id,
-                        sectionKeys = openIds,
-                    ) { from, to -> onReorder(openIds[from], openIds[to]) },
+                    dragModifier = if (sortMode == TodoSortMode.MANUAL) {
+                        Modifier.reorderHandle(
+                            state = dragState,
+                            key = todo.id,
+                            sectionKeys = openIds,
+                        ) { from, to -> onReorder(openIds[from], openIds[to]) }
+                    } else {
+                        // Due Date owns the order; keep the tap-to-collapse handle.
+                        Modifier
+                    },
                     modifier = Modifier
                         .animateItem()
                         .reorderItem(dragState, todo.id),
@@ -149,11 +158,15 @@ fun TodosScreen(
                         }
                     },
                     onToggleSubtask = onToggleSubtask,
-                    dragModifier = Modifier.reorderHandle(
-                        state = dragState,
-                        key = todo.id,
-                        sectionKeys = completedIds,
-                    ) { from, to -> onReorder(completedIds[from], completedIds[to]) },
+                    dragModifier = if (sortMode == TodoSortMode.MANUAL) {
+                        Modifier.reorderHandle(
+                            state = dragState,
+                            key = todo.id,
+                            sectionKeys = completedIds,
+                        ) { from, to -> onReorder(completedIds[from], completedIds[to]) }
+                    } else {
+                        Modifier
+                    },
                     modifier = Modifier
                         .animateItem()
                         .reorderItem(dragState, todo.id),

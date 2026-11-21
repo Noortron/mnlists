@@ -32,7 +32,7 @@
     <string name="habit_section_counter">Counter</string>
     <string name="habit_title_label">Title</string>
     <string name="habit_title_hint">e.g. Read 10 pages</string>
-    <string name="habit_title_error">Give this habit a title.</string>
+    <string name="habit_title_error">Title cannot be empty</string>
     <string name="habit_note_label">Note</string>
     <string name="habit_note_hint">Anything you want to remember about this habit</string>
     <string name="habit_schedule_label">Reset schedule</string>
@@ -65,7 +65,7 @@
     <string name="todo_section_due">Due date</string>
     <string name="todo_title_label">Title</string>
     <string name="todo_title_hint">e.g. Send the rent receipt</string>
-    <string name="todo_title_error">Give this to-do a title.</string>
+    <string name="todo_title_error">Title cannot be empty</string>
     <string name="todo_note_label">Note</string>
     <string name="todo_note_hint">Anything you want to remember about this to-do</string>
     <string name="todo_due_label">Due date</string>
@@ -77,6 +77,13 @@
     <string name="todo_due_clear">Clear</string>
     <string name="todo_section_open">To do</string>
     <string name="todo_section_completed">Completed</string>
+    <!-- To-Do sorting (Step 14) -->
+    <string name="settings_todo_sort">To-Do sorting</string>
+    <string name="settings_todo_sort_footnote">Choose how open to-dos are ordered. Manual keeps the order you set by dragging; Due Date puts the earliest deadline first.</string>
+    <string name="settings_todo_sort_manual">Manual (drag)</string>
+    <string name="settings_todo_sort_manual_description">Keep the order you set by dragging.</string>
+    <string name="settings_todo_sort_due_date">Due Date</string>
+    <string name="settings_todo_sort_due_date_description">Earliest deadline first; undated to-dos last.</string>
     <string name="todo_due_today_label">Due today</string>
     <string name="todo_due_tomorrow_label">Due tomorrow</string>
     <string name="todo_due_on">Due %1$s</string>
@@ -122,7 +129,7 @@
     <string name="daily_section_skipped">Skipped</string>
     <string name="daily_title_label">Title</string>
     <string name="daily_title_hint">e.g. Morning pages</string>
-    <string name="daily_title_error">Give this daily a title.</string>
+    <string name="daily_title_error">Title cannot be empty</string>
     <string name="daily_note_label">Note</string>
     <string name="daily_note_hint">Anything you want to remember about this daily</string>
     <string name="daily_start_label">Start date</string>
@@ -145,6 +152,7 @@
     <string name="daily_unskip">Unskip</string>
     <string name="daily_skip_description">Skip %1$s</string>
     <string name="daily_unskip_description">Unskip %1$s</string>
+    <string name="daily_skipped_badge">Skipped occurrence</string>
     <string name="daily_done_label">Done</string>
     <string name="daily_occurrence_readonly">To change the title, note or schedule, edit the whole series from the Dailies list.</string>
     <string name="daily_save">Save</string>
@@ -177,8 +185,6 @@
     <string name="reminder_delete_title">Delete reminder?</string>
     <string name="reminder_delete_body">This reminder will not notify you again.</string>
     <string name="reminder_delete_description">Delete reminder</string>
-    <string name="reminder_edit_description">Edit reminder</string>
-    <string name="reminder_permission_hint">Notifications are turned off. Allow them to see this reminder when it fires.</string>
     <string name="notification_channel_reminders">Reminders</string>
     <string name="notification_channel_reminders_description">Alerts for To-Do and Daily reminders.</string>
     <string name="notification_reminder_body">It\'s time for this reminder.</string>
@@ -240,10 +246,7 @@
     <string name="backup_import_summary">%1$d habits · %2$d to-dos · %3$d dailies · %4$d reminders</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_description">A strictly local-only, offline Android app for personal task and habit management. Everything stays on your device.</string>
-    <string name="about_credits_title">Credits</string>
-    <string name="about_credits_body">Made by Noortron. \n\nBuilt with Jetpack Compose, Material 3, Room, Hilt, Navigation Compose and DataStore.</string>
-    <string name="about_privacy_title">Local and private</string>
-    <string name="about_privacy_body">No account, no network and no analytics. Your habits, tasks, reminders and history stay on this device.</string>
+    <string name="about_links_title">Links</string>
     <string name="about_github_repo">View Source on GitHub</string>
     <string name="about_github_profile">Created by Noortron</string>
 </resources>

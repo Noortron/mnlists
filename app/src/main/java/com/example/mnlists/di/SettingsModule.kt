@@ -4,6 +4,7 @@ import com.example.mnlists.data.settings.AndroidNotificationAccessChecker
 import com.example.mnlists.data.settings.HabitDefaults
 import com.example.mnlists.data.settings.NotificationAccessChecker
 import com.example.mnlists.data.settings.SettingsRepository
+import com.example.mnlists.data.settings.TodoSortPreferences
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -18,6 +19,10 @@ abstract class SettingsModule {
     @Binds
     @Singleton
     abstract fun bindHabitDefaults(impl: SettingsRepository): HabitDefaults
+
+    @Binds
+    @Singleton
+    abstract fun bindTodoSortPreferences(impl: SettingsRepository): TodoSortPreferences
 
     @Binds
     @Singleton

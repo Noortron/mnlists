@@ -144,8 +144,11 @@ class DailyUiTest {
         assertTrue("completed row must sit below its header", completedHeaderTop < doneTop)
         assertStruckThrough("Finished reading")
         assertNotStruckThrough("Morning pages")
-        // Skipped rows only move sections; they keep the normal text styling.
+        // Skipped rows keep their text (no strikethrough) but carry a distinct
+        // » badge so they are not confused with the completed rows below them.
         assertNotStruckThrough("Skipped workout")
+        compose.onNodeWithTag(DAILY_SKIPPED_BADGE_TAG).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Skipped occurrence").assertIsDisplayed()
 
         // Skip is a live UI action on today's occurrence only.
         compose.onNodeWithContentDescription("Skip Morning pages").performScrollTo().performClick()
@@ -235,6 +238,28 @@ class DailyUiTest {
         assertTrue(repository.getSubtasks(occurrenceId).none { it.isCompleted })
         assertNotStruckThrough("First child")
         Unit
+    }
+
+    @Test
+    fun seriesEditor_blankTitle_showsInlineRedError_andDoesNotSave() = runBlocking {
+        val editor = DailyEditorViewModel(repository, manager, reminderScheduler, SavedStateHandle())
+        var saved = false
+        compose.setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalCursorBlinkEnabled provides false) {
+                    DailyEditorScreen(onDone = { saved = true }, viewModel = editor)
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(DAILY_TITLE_TAG).performTextReplacement("   ")
+        compose.onNodeWithText("Save").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Title cannot be empty").assertIsDisplayed()
+        assertFalse(saved)
+        assertTrue(repository.observeDailies().first().isEmpty())
     }
 
     @Test

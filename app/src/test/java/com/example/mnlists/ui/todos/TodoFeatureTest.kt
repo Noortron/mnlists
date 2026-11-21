@@ -14,10 +14,13 @@ import com.example.mnlists.data.reminder.ReminderScheduler
 import com.example.mnlists.data.reminder.testReminderScheduler
 import com.example.mnlists.data.repository.DailyRepository
 import com.example.mnlists.data.repository.TodoRepository
+import com.example.mnlists.data.settings.TodoSortMode
+import com.example.mnlists.data.settings.TodoSortPreferences
 import com.example.mnlists.ui.navigation.MnlistsRoutes
 import java.util.concurrent.Executor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -83,6 +86,37 @@ class TodoFeatureTest {
     fun tearDown() {
         database.close()
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun sortedFor_dueDate_ordersByDeadlineKeepsManualOrderUntouched() {
+        val rows = listOf(
+            Todo(id = 1L, title = "undated", sortOrder = 0.0),
+            Todo(id = 2L, title = "late", dueDate = 12L, sortOrder = 1.0),
+            Todo(id = 3L, title = "early", dueDate = 10L, sortOrder = 2.0),
+            Todo(id = 4L, title = "done", dueDate = 9L, sortOrder = 3.0, isCompleted = true),
+        )
+
+        assertEquals(rows, rows.sortedFor(TodoSortMode.MANUAL))
+        assertEquals(
+            listOf("early", "late", "undated", "done"),
+            rows.sortedFor(TodoSortMode.DUE_DATE).map { it.title },
+        )
+    }
+
+    @Test
+    fun viewModel_appliesThePersistedDueDateSortMode() = runBlocking {
+        repository.createTodo(Todo(title = "undated", sortOrder = 2.0))
+        repository.createTodo(Todo(title = "later", dueDate = 20L, sortOrder = 1.0))
+        repository.createTodo(Todo(title = "sooner", dueDate = 10L, sortOrder = 0.0))
+
+        val viewModel = TodosViewModel(repository, sortPrefs(TodoSortMode.DUE_DATE))
+
+        assertEquals(TodoSortMode.DUE_DATE, viewModel.sortMode.value)
+        assertEquals(
+            listOf("sooner", "later", "undated"),
+            viewModel.todos.first().map { it.title },
+        )
     }
 
     @Test
@@ -187,7 +221,7 @@ class TodoFeatureTest {
         val second = createTodo("Second", order = 2.0)
         val third = createTodo("Third", order = 3.0)
 
-        val viewModel = TodosViewModel(repository)
+        val viewModel = TodosViewModel(repository, sortPrefs())
         viewModel.setCompleted(first, completed = true)
 
         val completedRow = repository.getTodo(first)!!
@@ -330,6 +364,25 @@ class TodoFeatureTest {
         assertNull(parent.dueDate)
         assertEquals(1, repository.getSubtasks(parent.id).size)
         assertTrue("the parent now exists, so the editor is in edit mode", editor.isEditing)
+        assertEquals(
+            "the scaffold needs this id to swap New to-do → Edit to-do",
+            parent.id,
+            editor.createdParentId,
+        )
+    }
+
+    @Test
+    fun editor_addingFirstReminder_alsoSignalsTheRouteSwap() = runBlocking {
+        val editor = TodoEditorViewModel(repository, reminderScheduler, SavedStateHandle())
+        editor.setTitle("Water plants")
+
+        editor.addReminder(TodoDates.today() + 1, 9 * 60)
+
+        val parent = repository.observeTodos().first().single()
+        assertEquals("Water plants", parent.title)
+        assertEquals(1, editor.reminders.size)
+        assertTrue(editor.isEditing)
+        assertEquals(parent.id, editor.createdParentId)
     }
 
     @Test
@@ -389,7 +442,7 @@ class TodoFeatureTest {
                 isCompleted = true,
             ),
         )
-        val viewModel = TodosViewModel(repository)
+        val viewModel = TodosViewModel(repository, sortPrefs())
         assertEquals(4, viewModel.todos.first { it.isNotEmpty() }.size)
 
         viewModel.moveTodo(first, third)
@@ -412,6 +465,11 @@ class TodoFeatureTest {
         val day = TodoDates.today()
         assertEquals(day, TodoDates.fromUtcMillis(TodoDates.toUtcMillis(day)))
     }
+
+    private fun sortPrefs(mode: TodoSortMode = TodoSortMode.MANUAL) =
+        object : TodoSortPreferences {
+            override val todoSortMode = flowOf(mode)
+        }
 
     private suspend fun createTodo(title: String, order: Double): Long {
         val now = order.toLong() * 1_000L
