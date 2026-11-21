@@ -1,5 +1,6 @@
 package com.example.mnlists.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.mnlists.BuildConfig
@@ -24,6 +26,8 @@ import com.example.mnlists.R
  */
 @Composable
 fun AboutScreen() {
+    val uriHandler = LocalUriHandler.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -40,6 +44,24 @@ fun AboutScreen() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
+        )
+
+        // GitHub Links
+        Text(
+            text = stringResource(R.string.about_github_repo),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(top = 12.dp)
+                .clickable { uriHandler.openUri("https://github.com/Noortron/mnlists") },
+        )
+        Text(
+            text = stringResource(R.string.about_github_profile),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .clickable { uriHandler.openUri("https://github.com/Noortron") },
         )
 
         Spacer(Modifier.height(20.dp))

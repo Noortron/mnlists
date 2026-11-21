@@ -225,7 +225,9 @@
     <string name="about_version">Version %1$s</string>
     <string name="about_description">A strictly local-only, offline Android app for personal task and habit management. Everything stays on your device.</string>
     <string name="about_credits_title">Credits</string>
-    <string name="about_credits_body">Made by Noortron. Built with Jetpack Compose, Material 3, Room, Hilt, Navigation Compose and DataStore.</string>
+    <string name="about_credits_body">Made by Noortron. \n\nBuilt with Jetpack Compose, Material 3, Room, Hilt, Navigation Compose and DataStore.</string>
     <string name="about_privacy_title">Local and private</string>
     <string name="about_privacy_body">No account, no network and no analytics. Your habits, tasks, reminders and history stay on this device.</string>
+    <string name="about_github_repo">View Source on GitHub</string>
+    <string name="about_github_profile">Created by Noortron</string>
 </resources>
