@@ -1,4 +1,4 @@
-https://img.shields.io/badge/License-MIT-blue.svg
+!https://img.shields.io/badge/License-MIT-blue.svg
 # MNlists
 
 A strictly local-only, offline Android app for personal task and habit management. No accounts, no sync, no cloud, no gamification. Just a calm, modern, and soft planner designed to keep you organized.
