@@ -17,16 +17,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,7 +54,10 @@ import com.example.mnlists.data.model.ResetSchedule
 import com.example.mnlists.data.settings.NotificationAccessState
 import com.example.mnlists.data.settings.NotificationAccessStatus
 import com.example.mnlists.data.settings.ThemeMode
+import com.example.mnlists.ui.backup.BackupFileIo
+import com.example.mnlists.ui.backup.BackupViewModel
 import com.example.mnlists.ui.settings.SettingsViewModel
+import kotlinx.coroutines.launch
 
 /** Stateful Settings destination: persisted preferences plus live permission state. */
 @Composable
@@ -52,14 +65,63 @@ fun SettingsRoute(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    backupViewModel: BackupViewModel = hiltViewModel(),
 ) {
     val defaultSchedule by viewModel.defaultResetSchedule.collectAsStateWithLifecycle()
     val notificationAccess by viewModel.notificationAccess.collectAsStateWithLifecycle()
+    val pendingBackup by backupViewModel.pending.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(backupViewModel) {
+        backupViewModel.events.collect { event ->
+            snackbarHostState.showSnackbar(event.message)
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { viewModel.refreshNotificationAccess() }
+
+    // SAF gives temporary read/write access to the chosen document; no storage
+    // permission is needed. CreateDocument defaults to the public Downloads area.
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val json = try {
+                backupViewModel.exportJson()
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.backup_export_failed, e.message ?: ""),
+                )
+                return@launch
+            }
+            val saved = BackupFileIo.write(context, uri, json)
+            snackbarHostState.showSnackbar(
+                if (saved) {
+                    context.getString(R.string.backup_export_success)
+                } else {
+                    context.getString(R.string.backup_file_unreadable)
+                },
+            )
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val raw = BackupFileIo.read(context, uri)
+            if (raw == null) {
+                snackbarHostState.showSnackbar(context.getString(R.string.backup_file_unreadable))
+            } else {
+                backupViewModel.prepareImport(raw)
+            }
+        }
+    }
 
     // Coming back from the system notification page must update the status row.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,20 +133,60 @@ fun SettingsRoute(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SettingsScreen(
-        themeMode = themeMode,
-        onThemeModeChange = onThemeModeChange,
-        defaultSchedule = defaultSchedule,
-        onDefaultScheduleChange = viewModel::setDefaultResetSchedule,
-        notificationAccess = notificationAccess,
-        onNotificationAction = {
-            if (notificationAccess.canRequestPermission) {
-                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                context.openNotificationSettings()
-            }
-        },
-    )
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        SettingsScreen(
+            modifier = Modifier.padding(padding),
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
+            defaultSchedule = defaultSchedule,
+            onDefaultScheduleChange = viewModel::setDefaultResetSchedule,
+            notificationAccess = notificationAccess,
+            onNotificationAction = {
+                if (notificationAccess.canRequestPermission) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    context.openNotificationSettings()
+                }
+            },
+            onExportBackup = { exportLauncher.launch(BackupFileIo.suggestedFileName()) },
+            onImportBackup = {
+                importLauncher.launch(arrayOf("application/json", "*/*"))
+            },
+        )
+
+        pendingBackup?.let { pending ->
+            val counts = pending.counts
+            AlertDialog(
+                onDismissRequest = backupViewModel::cancelImport,
+                title = { Text(stringResource(R.string.backup_import_confirm_title)) },
+                text = {
+                    Text(
+                        stringResource(R.string.backup_import_confirm_body) + "\n\n" +
+                            stringResource(
+                                R.string.backup_import_summary,
+                                counts.habits,
+                                counts.todos,
+                                counts.dailies,
+                                counts.reminders,
+                            ),
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = backupViewModel::confirmImport) {
+                        Text(stringResource(R.string.backup_import_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = backupViewModel::cancelImport) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
+    }
 }
 
 /**
@@ -99,9 +201,12 @@ fun SettingsScreen(
     onDefaultScheduleChange: (ResetSchedule) -> Unit = {},
     notificationAccess: NotificationAccessState = NotificationAccessState(),
     onNotificationAction: () -> Unit = {},
+    onExportBackup: () -> Unit = {},
+    onImportBackup: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -162,6 +267,59 @@ fun SettingsScreen(
             }
         }
         Footnote(stringResource(R.string.settings_habit_defaults_footnote))
+
+        SectionHeader(
+            text = stringResource(R.string.settings_backup),
+            modifier = Modifier.padding(top = 22.dp),
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Column {
+                BackupActionRow(
+                    description = stringResource(R.string.settings_export_support),
+                    label = stringResource(R.string.settings_export),
+                    tag = SETTINGS_EXPORT_TAG,
+                    onClick = onExportBackup,
+                )
+                SettingsDivider()
+                BackupActionRow(
+                    description = stringResource(R.string.settings_import_support),
+                    label = stringResource(R.string.settings_import),
+                    tag = SETTINGS_IMPORT_TAG,
+                    onClick = onImportBackup,
+                )
+            }
+        }
+        Footnote(stringResource(R.string.settings_backup_footnote))
+    }
+}
+
+@Composable
+private fun BackupActionRow(
+    description: String,
+    label: String,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+        )
+        Button(onClick = onClick, modifier = Modifier.testTag(tag)) {
+            Text(label)
+        }
     }
 }
 
@@ -363,6 +521,8 @@ internal fun settingsDefaultScheduleTag(schedule: ResetSchedule): String =
     "settingsDefaultSchedule_${schedule.name.lowercase()}"
 
 internal const val SETTINGS_NOTIFICATION_ACTION_TAG = "settingsNotificationAction"
+internal const val SETTINGS_EXPORT_TAG = "settingsExportBackup"
+internal const val SETTINGS_IMPORT_TAG = "settingsImportBackup"
 
 private fun Context.openNotificationSettings() {
     val appSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)

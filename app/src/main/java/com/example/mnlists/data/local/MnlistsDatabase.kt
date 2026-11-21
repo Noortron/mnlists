@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.mnlists.data.backup.BackupDao
 import com.example.mnlists.data.local.dao.DailyDao
 import com.example.mnlists.data.local.dao.DailyOccurrenceDao
 import com.example.mnlists.data.local.dao.HabitDao
@@ -39,6 +40,8 @@ import com.example.mnlists.data.local.entity.Todo
 )
 @TypeConverters(Converters::class)
 abstract class MnlistsDatabase : RoomDatabase() {
+
+    abstract fun backupDao(): BackupDao
 
     abstract fun habitDao(): HabitDao
 

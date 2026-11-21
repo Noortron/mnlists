@@ -222,6 +222,22 @@
     <string name="settings_habit_default_weekly">Counter resets each week.</string>
     <string name="settings_habit_default_monthly">Counter resets each month.</string>
     <string name="settings_habit_default_every_n">Uses the “every N days” value set on the habit.</string>
+
+    <!-- Backup & restore (SPEC §4.9, Step 13.5) -->
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_footnote">Export all habits, tasks, reminders and history as one JSON file. Import replaces everything currently stored on this device.</string>
+    <string name="settings_export">Export to File</string>
+    <string name="settings_export_support">Save a JSON backup to your chosen location (e.g. Downloads).</string>
+    <string name="settings_import">Import from File</string>
+    <string name="settings_import_support">Choose a previously exported JSON backup.</string>
+    <string name="backup_export_success">Backup saved.</string>
+    <string name="backup_export_failed">Could not save the backup: %1$s</string>
+    <string name="backup_import_failed">Import failed: %1$s Nothing was changed.</string>
+    <string name="backup_file_unreadable">The selected file could not be read.</string>
+    <string name="backup_import_confirm_title">Replace all data?</string>
+    <string name="backup_import_confirm_body">This deletes all current habits, tasks, reminders and history, then restores the selected backup. This cannot be undone.</string>
+    <string name="backup_import_confirm">Replace data</string>
+    <string name="backup_import_summary">%1$d habits · %2$d to-dos · %3$d dailies · %4$d reminders</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_description">A strictly local-only, offline Android app for personal task and habit management. Everything stays on your device.</string>
     <string name="about_credits_title">Credits</string>

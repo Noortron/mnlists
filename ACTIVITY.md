@@ -1,9 +1,9 @@
 # MNlists — ACTIVITY
 
 ## Project Status
-- Current step: 13.5 (next unfinished step; Step 13 complete)
-- Last updated: 2026-11-21T12:57:16+06:00
-- Overall: 14/17 steps complete (Steps 0–13; 13.5, 14 and 15 remain)
+- Current step: 14 (next unfinished step; Step 13.5 complete)
+- Last updated: 2026-11-21T14:01:51+06:00
+- Overall: 15/17 steps complete (Steps 0–13 and 13.5; 14 and 15 remain)
 
 ## Step Checklist
 - [x] Step 0: Bootstrap activity file
@@ -22,7 +22,7 @@
 - [x] Step 11: Reminders & notifications
 - [x] Step 12: Calendar UI + day list
 - [x] Step 13: Settings & About pages
-- [ ] Step 13.5: Import / Export (JSON backup & restore in Settings)
+- [x] Step 13.5: Import / Export (JSON backup & restore in Settings)
 - [ ] Step 14: Polish pass
 - [ ] Step 15: Final QA + release prep
 
@@ -47,8 +47,18 @@
 - Files touched: `data/model/Enums.kt`, `data/settings/{SettingsRepository,HabitDefaults,NotificationAccess,AndroidNotificationAccessChecker}.kt`, `di/SettingsModule.kt`, `ui/settings/SettingsViewModel.kt`, `ui/screens/{SettingsScreen,AboutScreen}.kt`, `ui/MnlistsApp.kt`, `ui/habits/HabitEditorViewModel.kt`, `res/values/strings.xml`; tests in `app/src/test/.../data/settings/` and `app/src/test/.../ui/screens/`, plus the two Habits tests. No Room/schema change (DB stays v4).
 - Notes / decisions: the Settings default only preselects the schedule in the editor; it can still be changed per habit. Monthly is deliberately not offered (it was already removed from the habit editor). `SPEC.md` untouched; all work uncommitted.
 
+### Step 13.5 — Import / Export — 2026-11-21T14:01:51+06:00 — complete
+- What was done:
+  - **Serialization** (`data/backup/`): `BackupPayload` + DTOs for all seven Room tables (Habit, HabitLog, Todo, Daily, DailyOccurrence, Subtask, Reminder) using `kotlinx.serialization` (new plugin 2.2.10 + `kotlinx-serialization-json` 1.9.0). `BackupCodec` writes pretty JSON with format `mnlists-backup`, version 1; `BackupDao` adds bulk read/delete/insert without touching feature DAOs.
+  - **Validation** (`BackupValidator`): returns `Valid(ValidBackup)` or `Invalid(reason)` instead of throwing. Checks structure, format/version, row limits, ids/notification-id uniqueness, duplicate (daily, date) pairs, enums, weekdays, counts, dates, sort-order finiteness; accepts intentionally orphaned history. `BackupRepository.importJson` validates first, then performs one Room transaction that deletes all tables and inserts the backup (strict replace → no id collisions); any DB failure rolls back.
+  - **UI** (`ui/screens/SettingsScreen.kt`, `ui/backup/`): "Backup & restore" section with **Export to File** (SAF `CreateDocument`, default filename `mnlists-backup-yyyyMMdd-HHmm.json`, written to the chosen location incl. public Downloads) and **Import from File** (SAF `OpenDocument`, capped 16 MB read). Valid imports show a "Replace all data?" confirmation with counts; invalid/unreadable files show a Snackbar and leave Room untouched. New `BackupViewModel` holds the pending import and events.
+  - **Tests**: `BackupSerializationTest` (all tables present + round-trip), `BackupValidatorTest` (corrupt/foreign JSON, duplicates, bad enums/ranges, orphan tolerance), `BackupRepositoryTest` (real Room: export → stale data → import restores; corrupt/duplicate imports leave DB byte-for-byte equal), `SettingsUiTest` (both buttons visible/clickable).
+- Verification: `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, `:app:assembleDebug` → **BUILD SUCCESSFUL**; **175 tests, 0 failures/errors/skips** (was 164). No Room schema change (DB stays v4).
+- Files touched: `gradle/libs.versions.toml`, `app/build.gradle.kts`, `data/local/MnlistsDatabase.kt`, new `data/backup/{BackupModels,BackupCodec,BackupValidator,BackupDao,BackupRepository}.kt`, new `ui/backup/{BackupFileIo,BackupViewModel}.kt`, `ui/screens/SettingsScreen.kt`, `res/values/strings.xml`, tests in `data/backup/` + `SettingsUiTest.kt`. `SPEC.md` untouched; all work uncommitted.
+- Notes / decisions: chose strict **replace** (SPEC §4.9 permits replace or merge) with an explicit confirmation; merge/id-remapping was intentionally not implemented. kotlinx.serialization was chosen over Gson (no reflection, R8-safe).
+
 ## Next Up
-- Step 13.5: Import / Export — JSON serialization of all Room data plus "Export to File" / "Import from File" rows in Settings (SPEC §4.9). Note: this step was missing from the checklist in earlier revisions and has now been added.
+- Step 14: Polish pass — motion/transitions, empty and loading states, accessibility (content descriptions, 48dp targets, contrast), rounded corners and final visual QA (SPEC §12).
 
 ## Deviations & Issues
 - **Step 1 was not actually complete on arrival.** Project contained only the Android Studio Views template (`activity_main.xml` + Hello World), no Kotlin source directory, no Compose/Hilt/Navigation. Skeleton was built from scratch and the unused layout deleted.
@@ -98,6 +108,10 @@
 - **Step 13 runtime verification is JVM-only**: theme switching through the real `MainActivity`, the Android 13+ permission dialog and opening the system notification settings page are not exercised on a device. The navigation test uses a small NavHost shell with the real `MnlistsTopBar` rather than the full `MnlistsApp`; actual menu wiring is compile-verified and code-reviewed.
 - **`settings_habit_default_monthly` string is unused**: Monthly stays hidden in both the habit editor and Settings defaults (existing user override), so the reference string can be removed during polish.
 - **Step 13.5 was missing from ACTIVITY.md's checklist** in earlier revisions even though SPEC §12 lists it. Added as the next unfinished step; this is a bookkeeping fix, not a spec change.
+- **Step 13.5 runtime verification is JVM-only**: SAF file pickers, `ContentResolver` streams and Snackbars are compile-verified and covered by Robolectric/real-Room tests, but no real device export/import round-trip was performed. Needs a user device smoke test (pick a Downloads file, export, re-import it).
+- **Export uses SAF `ACTION_CREATE_DOCUMENT`, not a direct MediaStore Downloads write or Share Sheet**: the user picks the destination (public Downloads is available) and no storage permission is needed. SPEC §4.9 allows either route.
+- **Import is strict replace, not merge**; a valid file wipes current data after confirmation. This is the SPEC-permitted alternative and keeps id/notification-id collisions impossible. Orphan rows (e.g. habit history with no parent) are deliberately accepted so exports of existing data remain restorable.
+- **BackupViewModel emits English Snackbar text from code** rather than `strings.xml` (the validation reason is also English). Cosmetic/localisation debt for the polish pass.
 
 ## Recovery Notes
 - Working dir: `D:\Shadid\Pro_Pro`; SDK: `C:\Users\HP\AppData\Local\Android\Sdk` (platforms android-36.1, android-37.0; build-tools 36.0.0).
@@ -118,3 +132,4 @@
 - Data layer: DB name `mnlists.db`, entities/DAOs in `data/local/`, repositories in `data/repository/`, Hilt providers in `di/DatabaseModule.kt`. Room schema JSON: `app/schemas/com.example.mnlists.data.local.MnlistsDatabase/1.json` … `4.json` (current DB version **4**; `MIGRATION_1_2`, `MIGRATION_2_3` and `MIGRATION_3_4` registered in `DatabaseModule`).
 - Run tests: `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat :app:testDebugUnitTest` (first Robolectric run downloads jars and takes several minutes). Compose UI tests run in the same JVM suite; `unitTests.isIncludeAndroidResources = true` is required for them (merged manifest/resources), and `unitTests.all { maxHeapSize = "3g" }` is required because Robolectric's native text-layout registry exhausts the default 512 MB heap. Do not put text fields in dialogs in Robolectric tests (they never reach idle) — keep input in the main window. PowerShell may exit 1 on benign JVM/Espresso stderr warnings; trust the BUILD SUCCESSFUL line and the JUnit XMLs under `app/build/test-results/`.
 - Debug build manifest includes `androidx.compose.ui.tooling.PreviewActivity` (debug-only, expected).
+- Backup (Step 13.5): format constants live in `data/backup/BackupCodec.kt` (`mnlists-backup`, version 1); to add a field, update the DTOs/mappers **and** `BackupValidator`, then bump the version with an explicit migration decision. `BackupRepository` is Hilt-injectable via `MnlistsDatabase.backupDao()`; `SettingsRoute` owns both SAF launchers and the replace-confirmation dialog; test tags `settingsExportBackup` / `settingsImportBackup`. No DB version bump was needed.

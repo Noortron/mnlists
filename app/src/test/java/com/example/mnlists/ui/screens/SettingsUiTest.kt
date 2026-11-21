@@ -130,6 +130,30 @@ class SettingsUiTest {
     }
 
     @Test
+    fun backupRows_showBothActions_andReportClicks() {
+        var exports = 0
+        var imports = 0
+        compose.setContent {
+            MaterialTheme {
+                SettingsScreen(
+                    themeMode = ThemeMode.SYSTEM,
+                    onThemeModeChange = {},
+                    onExportBackup = { exports++ },
+                    onImportBackup = { imports++ },
+                )
+            }
+        }
+
+        compose.onNodeWithText(context.getString(R.string.settings_backup))
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag(SETTINGS_EXPORT_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(SETTINGS_IMPORT_TAG).performScrollTo().performClick()
+        assertEquals(1, exports)
+        assertEquals(1, imports)
+    }
+
+    @Test
     fun about_showsNameVersionDescriptionAndCredits() {
         compose.setContent {
             MaterialTheme { AboutScreen() }
